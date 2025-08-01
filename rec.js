@@ -2,18 +2,24 @@
 // Version: 0.1.0
 (function () {
   // ==== CONFIG ====
-  const FALLBACK_URL_FRAGMENT = "/dev-g28fdlssrobui45i/%D9%81%D8%B3%D8%AA%D8%A7%D9%86/p1123056285".toLowerCase();
+  const FALLBACK_URL_FRAGMENT =
+    "/dev-g28fdlssrobui45i/%D9%81%D8%B3%D8%AA%D8%A7%D9%86/p1123056285".toLowerCase();
   const EXTERNAL_FLOW_BASE = "https://your-saas.com/flow/start"; // adjust
   const TRACK_CLICK_ENDPOINT = "https://your-saas.com/track-click";
   const TRACK_RETURN_ENDPOINT = "https://your-saas.com/track-return";
 
   // ==== UTILS ====
   const DEBUG = /[?&]size_rec_debug=1/.test(window.location.search);
-  function log(...args) { if (DEBUG) console.log("[SizeRec]", ...args); }
+  function log(...args) {
+    if (DEBUG) console.log("[SizeRec]", ...args);
+  }
 
   function genUUID() {
-    return ([1e7]+-1e3+-4e3+-8e3+-1e11).replace(/[018]/g, c =>
-      (c ^ crypto.getRandomValues(new Uint8Array(1))[0] & 15 >> c / 4).toString(16)
+    return ([1e7] + -1e3 + -4e3 + -8e3 + -1e11).replace(/[018]/g, (c) =>
+      (
+        c ^
+        (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (c / 4)))
+      ).toString(16)
     );
   }
 
@@ -24,15 +30,24 @@
   // ==== PDP DETECTION ====
   function hasStructuredProduct() {
     try {
-      const scripts = Array.from(document.querySelectorAll('script[type="application/ld+json"]'));
+      const scripts = Array.from(
+        document.querySelectorAll('script[type="application/ld+json"]')
+      );
       for (const s of scripts) {
         let data;
-        try { data = JSON.parse(s.textContent); } catch { continue; }
+        try {
+          data = JSON.parse(s.textContent);
+        } catch {
+          continue;
+        }
         const arr = Array.isArray(data) ? data : [data];
         for (const item of arr) {
-          const type = item['@type'];
-          if ((typeof type === 'string' && type.toLowerCase() === 'product') ||
-              (Array.isArray(type) && type.map(t => t.toLowerCase()).includes('product'))) {
+          const type = item["@type"];
+          if (
+            (typeof type === "string" && type.toLowerCase() === "product") ||
+            (Array.isArray(type) &&
+              type.map((t) => t.toLowerCase()).includes("product"))
+          ) {
             return true;
           }
         }
@@ -44,36 +59,115 @@
   }
 
   function hasActionKeyword() {
-    const kws = ['add to cart','buy now','اشتري الآن','أضف إلى السلة','purchase','checkout'];
-    const els = Array.from(document.querySelectorAll('button, [role="button"]'));
-    return els.some(b => {
-      const t = (b.textContent || '').trim().toLowerCase();
-      return kws.some(k => t.includes(k));
+    const kws = [
+      "add to cart",
+      "buy now",
+      "اشتري الآن",
+      "أضف إلى السلة",
+      "purchase",
+      "checkout",
+      "إضافة للسلة",
+    ];
+    const els = Array.from(
+      document.querySelectorAll('button, [role="button"]')
+    );
+    return els.some((b) => {
+      const t = (b.textContent || "").trim().toLowerCase();
+      return kws.some((k) => t.includes(k));
     });
   }
 
   function hasDataAttr() {
-    return !!document.querySelector('[data-product-id],[data-sku],[data-product-slug]');
+    return !!document.querySelector(
+      "[data-product-id],[data-sku],[data-product-slug]"
+    );
   }
 
   function isProductPage() {
     const href = window.location.href.toLowerCase();
+    const FALLBACK_URL_FRAGMENT =
+      "/dev-g28fdlssrobui45i/%D9%81%D8%B3%D8%AA%D8%A7%D9%86/p1123056285".toLowerCase();
+
+    // 1. Fallback URL
     if (href.includes(FALLBACK_URL_FRAGMENT)) {
-      log("PDP detection: fallback match");
       return true;
     }
-    if (hasStructuredProduct()) {
-      log("PDP detection: structured data");
+
+    // 2. Structured data
+    try {
+      const scripts = Array.from(
+        document.querySelectorAll('script[type="application/ld+json"]')
+      );
+      for (const s of scripts) {
+        let data;
+        try {
+          data = JSON.parse(s.textContent);
+        } catch {
+          continue;
+        }
+        const arr = Array.isArray(data) ? data : [data];
+        for (const item of arr) {
+          const type = item["@type"];
+          if (
+            (typeof type === "string" && type.toLowerCase() === "product") ||
+            (Array.isArray(type) &&
+              type.map((t) => t.toLowerCase()).includes("product"))
+          ) {
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      // swallow
+    }
+
+    // 3. Specific Salla add-to-cart button structure
+    try {
+      const container = document.querySelector("div.s-add-product-button-main");
+      if (container) {
+        const span = container.querySelector("span.s-button-text");
+        if (span) {
+          const txt = (span.textContent || "").trim().toLowerCase();
+          if (
+            txt === "add to cart".toLowerCase() ||
+            txt === "إضافة للسلة".toLowerCase()
+          ) {
+            return true;
+          }
+        }
+      }
+    } catch (e) {
+      // ignore
+    }
+
+    // 4. Other action keywords (fallback)
+    const actionKeywords = [
+      "add to cart",
+      "buy now",
+      "اشتري الآن",
+      "أضف إلى السلة",
+      "purchase",
+      "checkout",
+    ];
+    const candidates = Array.from(
+      document.querySelectorAll('button, [role="button"]')
+    );
+    if (
+      candidates.some((b) => {
+        const t = (b.textContent || "").trim().toLowerCase();
+        return actionKeywords.some((k) => t.includes(k));
+      })
+    ) {
       return true;
     }
-    if (hasActionKeyword()) {
-      log("PDP detection: action keyword");
+
+    // 5. Data attributes
+    if (
+      document.querySelector("[data-product-id],[data-sku],[data-product-slug]")
+    ) {
       return true;
     }
-    if (hasDataAttr()) {
-      log("PDP detection: data attribute");
-      return true;
-    }
+
     return false;
   }
 
@@ -96,18 +190,22 @@
         zIndex: 100001,
         lineHeight: "1.2",
         fontFamily: "system-ui,-apple-system,BlinkMacSystemFont,sans-serif",
-        maxWidth: "280px"
+        maxWidth: "280px",
       });
       document.body.appendChild(overlay);
     }
     const checks = [
-      ["Fallback URL", window.location.href.toLowerCase().includes(FALLBACK_URL_FRAGMENT)],
+      [
+        "Fallback URL",
+        window.location.href.toLowerCase().includes(FALLBACK_URL_FRAGMENT),
+      ],
       ["Structured Data", hasStructuredProduct()],
       ["Action Btn", hasActionKeyword()],
-      ["Data Attrs", hasDataAttr()]
+      ["Data Attrs", hasDataAttr()],
     ];
-    overlay.innerHTML = `<strong>SizeRec Detection</strong><br>` +
-      checks.map(c => `${c[0]}: ${c[1] ? "✅" : "❌"}`).join("<br>");
+    overlay.innerHTML =
+      `<strong>SizeRec Detection</strong><br>` +
+      checks.map((c) => `${c[0]}: ${c[1] ? "✅" : "❌"}`).join("<br>");
   }
 
   // ==== BUTTON INJECTION ====
@@ -130,10 +228,14 @@
       fontWeight: "600",
       zIndex: 100000,
       boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
-      transition: "transform .2s"
+      transition: "transform .2s",
     });
-    btn.addEventListener("mouseenter", () => { btn.style.transform = "scale(1.03)"; });
-    btn.addEventListener("mouseleave", () => { btn.style.transform = "scale(1)"; });
+    btn.addEventListener("mouseenter", () => {
+      btn.style.transform = "scale(1.03)";
+    });
+    btn.addEventListener("mouseleave", () => {
+      btn.style.transform = "scale(1)";
+    });
     btn.addEventListener("click", onButtonClick);
     return btn;
   }
@@ -157,7 +259,9 @@
     e.preventDefault();
     log("Button clicked");
     const sessionId = genUUID();
-    try { localStorage.setItem("size_rec_session", sessionId); } catch {}
+    try {
+      localStorage.setItem("size_rec_session", sessionId);
+    } catch {}
     const referralCode = sessionId;
     const productUrl = window.location.href;
 
@@ -169,8 +273,8 @@
         session_id: sessionId,
         referral_code: referralCode,
         product_url: productUrl,
-        timestamp: Date.now()
-      })
+        timestamp: Date.now(),
+      }),
     }).catch(() => {});
 
     // build redirect
@@ -201,7 +305,7 @@
       borderRadius: "6px",
       zIndex: 100000,
       fontFamily: "system-ui,sans-serif",
-      boxShadow: "0 8px 24px rgba(0,0,0,0.15)"
+      boxShadow: "0 8px 24px rgba(0,0,0,0.15)",
     });
     document.body.appendChild(banner);
     // notify backend
@@ -212,8 +316,8 @@
         session_id: recId,
         recommended_size: size,
         product_url: window.location.href,
-        timestamp: Date.now()
-      })
+        timestamp: Date.now(),
+      }),
     }).catch(() => {});
   }
 
@@ -229,7 +333,10 @@
       }, 150);
     }
   }
-  new MutationObserver(onNavUpdate).observe(document.body, { childList: true, subtree: true });
+  new MutationObserver(onNavUpdate).observe(document.body, {
+    childList: true,
+    subtree: true,
+  });
   const origPush = history.pushState;
   history.pushState = function () {
     origPush.apply(this, arguments);
