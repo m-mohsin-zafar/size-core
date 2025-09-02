@@ -330,14 +330,24 @@
     return btn;
   }
 
-  function injectButtonIfNeeded() {
-    if (!isProductPage()) { log("Not a PDP - skip injection"); return; }
+  let _injectAttempts = 0;
+  const MAX_INJECT_ATTEMPTS = 10; // safety bound
+  function injectButtonIfNeeded(force=false) {
     if (!document.body) return;
-    if (document.getElementById("size-rec-floating-btn")) return;
+    if (!force && document.getElementById("size-rec-floating-btn")) return; // already there
+    const pdp = isProductPage();
+    if (!pdp) {
+      if (_injectAttempts < MAX_INJECT_ATTEMPTS) {
+        _injectAttempts++;
+        setTimeout(() => injectButtonIfNeeded(), 500 * Math.min(_injectAttempts,4));
+      }
+      return;
+    }
+    if (document.getElementById("size-rec-floating-btn")) return; // re-check after async
     const btn = createButton();
     if (!btn) return;
     document.body.appendChild(btn);
-    log("Injected button");
+    log("Injected button (attempt", _injectAttempts, ")");
     if (DEBUG) renderDebugOverlay();
   }
 
@@ -621,26 +631,44 @@
 
   // ==== NAVIGATION / OBSERVERS ====
   let lastHref = location.href;
-  function onNavUpdate() {
-    if (location.href !== lastHref) {
-      lastHref = location.href;
+  let mutationScheduled = false;
+  function performStateCheck(urlChanged) {
+    if (urlChanged) {
+      _injectAttempts = 0; // reset attempts for new page
       setTimeout(() => {
-        injectButtonIfNeeded();
+        injectButtonIfNeeded(true);
         if (DEBUG) renderDebugOverlay();
         handleReturn();
       }, 150);
+    } else {
+      // No URL change: still attempt injection if missing (async content load)
+      injectButtonIfNeeded();
     }
   }
-  new MutationObserver(onNavUpdate).observe(document.body || document.documentElement, { childList: true, subtree: true });
+  function scheduleMutationCheck() {
+    if (mutationScheduled) return;
+    mutationScheduled = true;
+    setTimeout(() => {
+      mutationScheduled = false;
+      const urlChanged = location.href !== lastHref;
+      if (urlChanged) lastHref = location.href;
+      performStateCheck(urlChanged);
+    }, 180);
+  }
+  const observer = new MutationObserver(scheduleMutationCheck);
+  observer.observe(document.documentElement, { childList: true, subtree: true });
   const origPush = history.pushState;
-  history.pushState = function () { origPush.apply(this, arguments); onNavUpdate(); };
+  history.pushState = function () { origPush.apply(this, arguments); scheduleMutationCheck(); };
   const origReplace = history.replaceState;
-  history.replaceState = function () { origReplace.apply(this, arguments); onNavUpdate(); };
-  window.addEventListener("popstate", onNavUpdate);
+  history.replaceState = function () { origReplace.apply(this, arguments); scheduleMutationCheck(); };
+  window.addEventListener("popstate", scheduleMutationCheck);
+  window.addEventListener("visibilitychange", () => { if (!document.hidden) injectButtonIfNeeded(); });
+  window.addEventListener("pageshow", () => injectButtonIfNeeded()); // bfcache restore
 
   // ==== BOOTSTRAP ====
   async function init() {
-    injectButtonIfNeeded();
+  // Multiple staggered attempts to catch late-loading DOM on PDP
+  [0, 400, 1200, 2500].forEach(delay => setTimeout(() => injectButtonIfNeeded(), delay));
     handleReturn();
     if (DEBUG) await renderDebugOverlay();
   }
