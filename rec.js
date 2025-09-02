@@ -267,6 +267,35 @@
   }
 
   // ==== BUTTON INJECTION (unchanged except debug call) ====
+  function applyButtonResponsiveStyles(btn) {
+    try {
+      const mobile = window.matchMedia('(max-width: 640px)').matches;
+      if (mobile) {
+        Object.assign(btn.style, {
+          left: '16px',
+          right: '16px',
+          width: 'auto',
+          minWidth: '0',
+          bottom: 'calc(16px + env(safe-area-inset-bottom, 0))',
+          padding: '16px 20px',
+          fontSize: '15px',
+          borderRadius: '14px',
+          display: 'flex',
+          justifyContent: 'center'
+        });
+      } else {
+        Object.assign(btn.style, {
+          width: 'auto',
+          left: 'unset',
+          right: '16px',
+          bottom: '16px',
+          padding: '14px 20px',
+          borderRadius: '8px'
+        });
+      }
+    } catch {}
+  }
+
   function createButton() {
     if (document.getElementById("size-rec-floating-btn")) return null;
     const btn = document.createElement("button");
@@ -276,18 +305,24 @@
       position: "fixed",
       bottom: "16px",
       right: "16px",
-      padding: "14px 20px",
       background: "#ff6f61",
       color: "#fff",
       border: "none",
-      borderRadius: "8px",
       cursor: "pointer",
       fontSize: "14px",
       fontWeight: "600",
       zIndex: 100000,
       boxShadow: "0 12px 32px rgba(0,0,0,0.2)",
       transition: "transform .2s",
+      lineHeight: '1.2',
+      maxWidth: '100%',
+      boxSizing: 'border-box'
     });
+    applyButtonResponsiveStyles(btn);
+    // Re-evaluate on resize / orientation change
+    let resizeTO;
+    window.addEventListener('resize', () => { clearTimeout(resizeTO); resizeTO = setTimeout(() => applyButtonResponsiveStyles(btn), 80); });
+    window.addEventListener('orientationchange', () => setTimeout(() => applyButtonResponsiveStyles(btn), 120));
   btn.setAttribute("aria-label", "Get size recommendation");
     btn.addEventListener("mouseenter", () => { btn.style.transform = "scale(1.03)"; });
     btn.addEventListener("mouseleave", () => { btn.style.transform = "scale(1)"; });
