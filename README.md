@@ -78,6 +78,32 @@ The Size Core widget is carefully optimized for mobile devices:
 - **Safe Area Insets**: Respects iOS safe area insets for notches and home indicators
 - **Orientation Change Support**: Properly handles device orientation changes
 
+### Camera Access and Permissions
+
+The Size Core widget requires camera access to provide size recommendations. To ensure this works properly in iframe contexts:
+
+- **Parent Page Permission Handling**: The widget now handles camera permissions at the parent page level
+- **Pre-Request Mechanism**: Camera permission is requested before the iframe loads
+- **Permission Status Sharing**: Permission status is communicated to the iframe
+- **Message-Based Fallback**: If needed, the iframe can request permission via postMessage
+- **Allow Attribute**: The iframe includes the necessary `allow="camera; microphone"` attribute
+
+#### How Camera Permissions Work
+
+1. When the user clicks "Start Guided Photos," the widget requests camera access
+2. After permission is granted (or denied), the iframe is loaded with this status
+3. The iframe can use this information to adapt its UI accordingly
+4. If needed, the iframe can request permission again via postMessage
+
+#### Troubleshooting Camera Access
+
+If users experience issues with camera access:
+
+- Ensure the page uses HTTPS (required for camera access)
+- Make sure there are no browser extensions blocking camera access
+- Check that the site doesn't have camera permissions explicitly blocked
+- For testing locally, add localhost to allowed insecure origins in Chrome
+
 ### Theme Customization
 
 You can customize the theme color of the widget by using the `data-theme-color` attribute:

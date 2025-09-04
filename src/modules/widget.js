@@ -126,44 +126,78 @@ export function closeWidget() {
 }
 
 /**
+ * Request camera permission on behalf of the iframe
+ * @returns {Promise<boolean>} - True if permission granted
+ */
+export async function requestCameraPermission() {
+  try {
+    // Try to get access to the camera
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+    
+    // If successful, immediately release the camera
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+    }
+    
+    return false;
+  } catch (error) {
+    log('Camera permission error:', error.message);
+    return false;
+  }
+}
+
+/**
  * Load the flow iframe
  */
 export function loadFlowIframe(shell) {
   // If already loaded, nothing
   if (document.getElementById(config.WIDGET_IFRAME_ID)) return;
-  const pid = resolveProductId();
-  const sessionId = genUUID();
-  try { localStorage.setItem("size-core-session", sessionId); } catch {}
-  const flowURL = new URL(config.EXTERNAL_FLOW_BASE);
-  flowURL.searchParams.set("session_id", sessionId);
-  if (pid) flowURL.searchParams.set("product_id", pid);
-  flowURL.searchParams.set("embed", "1");
   
-  // Add store ID to the URL if available
-  if (config.STORE_ID) {
-    flowURL.searchParams.set("store_id", config.STORE_ID);
-  }
-  
-  const frame = document.createElement("iframe");
-  frame.id = config.WIDGET_IFRAME_ID;
-  frame.src = flowURL.toString();
-  Object.assign(frame.style, {
-    border: "0 none",
-    width: "100%",
-    height: "100%",
-    flex: 1,
-    background: "#fff",
-    borderRadius: "0"
+  // First request camera permissions from the parent page
+  requestCameraPermission().then(permissionGranted => {
+    const pid = resolveProductId();
+    const sessionId = genUUID();
+    try { localStorage.setItem("size-core-session", sessionId); } catch {}
+    const flowURL = new URL(config.EXTERNAL_FLOW_BASE);
+    flowURL.searchParams.set("session_id", sessionId);
+    if (pid) flowURL.searchParams.set("product_id", pid);
+    flowURL.searchParams.set("embed", "1");
+    
+    // Add camera permission status to let the iframe know if permission was already granted
+    flowURL.searchParams.set("camera_permission", permissionGranted ? "granted" : "denied");
+    
+    // Add store ID to the URL if available
+    if (config.STORE_ID) {
+      flowURL.searchParams.set("store_id", config.STORE_ID);
+    }
+    
+    const frame = document.createElement("iframe");
+    frame.id = config.WIDGET_IFRAME_ID;
+    frame.src = flowURL.toString();
+    
+    // Add allow attribute for camera access
+    frame.allow = "camera; microphone";
+    
+    Object.assign(frame.style, {
+      border: "0 none",
+      width: "100%",
+      height: "100%",
+      flex: 1,
+      background: "#fff",
+      borderRadius: "0"
+    });
+    
+    // Replace greeting content with iframe
+    const content = document.getElementById(config.WIDGET_GREETING_ID);
+    if (content) {
+      content.innerHTML = ""; // clear
+      content.appendChild(frame);
+    } else {
+      shell.appendChild(frame);
+    }
+    trackClick("flow_loaded");
   });
-  // Replace greeting content with iframe
-  const content = document.getElementById(config.WIDGET_GREETING_ID);
-  if (content) {
-    content.innerHTML = ""; // clear
-    content.appendChild(frame);
-  } else {
-    shell.appendChild(frame);
-  }
-  trackClick("flow_loaded");
 }
 
 /**
@@ -188,6 +222,20 @@ export function handleIframeMessage(ev) {
         break;
       case "close_widget":
         closeWidget();
+        break;
+      case "request_camera_permission":
+        // Handle camera permission request from iframe
+        requestCameraPermission().then(granted => {
+          // Send the result back to the iframe
+          const iframe = document.getElementById(config.WIDGET_IFRAME_ID);
+          if (iframe && iframe.contentWindow) {
+            iframe.contentWindow.postMessage({
+              source: "size-core-parent",
+              type: "camera_permission_result",
+              granted: granted
+            }, FLOW_ORIGIN || "*");
+          }
+        });
         break;
       default:
         break;
