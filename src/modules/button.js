@@ -7,8 +7,8 @@ import { renderDebugOverlay } from './size-guides.js';
 // Constants for button positioning
 const BUTTON_POSITION_STORAGE_KEY = 'size-core-button-position';
 const SCREEN_EDGE_PADDING = 10; // Minimum distance from screen edge
-const MAX_BOTTOM_POSITION = 300; // Maximum distance from bottom of screen
-const MAX_RIGHT_POSITION = 300; // Maximum distance from right of screen
+// Instead of fixed pixel values, use percentages of the viewport
+const MAX_DISTANCE_PERCENTAGE = 0.7; // Button can't be more than 70% away from edges
 
 /**
  * Store button position in local storage
@@ -174,14 +174,22 @@ function makeButtonDraggable(btn) {
     }
     
     if (hasMoved) {
-      // Calculate new position with corrected direction logic
+      // Get viewport dimensions for calculating maximum distances
+      const viewportWidth = window.innerWidth || document.documentElement.clientWidth;
+      const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
+      
+      // Calculate maximum positions based on viewport size
+      const maxRight = Math.min(viewportWidth * MAX_DISTANCE_PERCENTAGE, viewportWidth - btn.offsetWidth - SCREEN_EDGE_PADDING);
+      const maxBottom = Math.min(viewportHeight * MAX_DISTANCE_PERCENTAGE, viewportHeight - btn.offsetHeight - SCREEN_EDGE_PADDING);
+      
+      // Calculate new position with corrected direction logic and dynamic limits
       const newRight = Math.min(
         Math.max(SCREEN_EDGE_PADDING, startRight - deltaX), 
-        MAX_RIGHT_POSITION
+        maxRight
       );
       const newBottom = Math.min(
         Math.max(SCREEN_EDGE_PADDING, startBottom - deltaY),
-        MAX_BOTTOM_POSITION
+        maxBottom
       );
       
       // Apply new position
@@ -284,10 +292,21 @@ export function applyButtonResponsiveStyles(btn) {
     let bottom = 20;
     let right = 20;
     
+    // Calculate maximum distances dynamically based on viewport
+    const maxBottom = Math.min(
+      windowHeight * MAX_DISTANCE_PERCENTAGE, 
+      windowHeight - size - SCREEN_EDGE_PADDING
+    );
+    
+    const maxRight = Math.min(
+      windowWidth * MAX_DISTANCE_PERCENTAGE, 
+      windowWidth - size - SCREEN_EDGE_PADDING
+    );
+    
     if (storedPosition) {
       // Validate stored position to ensure it's within screen bounds
-      bottom = Math.min(storedPosition.bottom, windowHeight - size - SCREEN_EDGE_PADDING);
-      right = Math.min(storedPosition.right, windowWidth - size - SCREEN_EDGE_PADDING);
+      bottom = Math.min(storedPosition.bottom, maxBottom);
+      right = Math.min(storedPosition.right, maxRight);
       
       // Enforce minimums
       bottom = Math.max(SCREEN_EDGE_PADDING, bottom);
