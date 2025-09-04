@@ -1,8 +1,155 @@
 import { openWidget } from './widget.js';
-import { DEBUG } from './config.js';
+import { DEBUG, config } from './config.js';
 import { log, createInlineSVG } from './utils.js';
 import { isProductPage } from './product-detection.js';
 import { renderDebugOverlay } from './size-guides.js';
+
+// Constants for button positioning
+const BUTTON_POSITION_STORAGE_KEY = 'size-core-button-position';
+const SCREEN_EDGE_PADDING = 10; // Minimum distance from screen edge
+
+/**
+ * Store button position in local storage
+ */
+function storeButtonPosition(bottom, right) {
+  try {
+    const position = { bottom, right };
+    localStorage.setItem(BUTTON_POSITION_STORAGE_KEY, JSON.stringify(position));
+    log('Button position stored:', position);
+  } catch (e) {
+    log('Failed to store button position:', e);
+  }
+}
+
+/**
+ * Get stored button position from local storage
+ */
+function getStoredButtonPosition() {
+  try {
+    const position = localStorage.getItem(BUTTON_POSITION_STORAGE_KEY);
+    if (position) {
+      return JSON.parse(position);
+    }
+  } catch (e) {
+    log('Failed to retrieve button position:', e);
+  }
+  return null;
+}
+
+/**
+ * Make button draggable
+ */
+function makeButtonDraggable(btn) {
+  let startX, startY;
+  let startRight, startBottom;
+  let isDragging = false;
+  let hasMoved = false;
+  
+  // Touch events for mobile
+  btn.addEventListener('touchstart', handleStart, { passive: false });
+  document.addEventListener('touchmove', handleMove, { passive: false });
+  document.addEventListener('touchend', handleEnd);
+  
+  // Mouse events for desktop
+  btn.addEventListener('mousedown', handleStart);
+  document.addEventListener('mousemove', handleMove);
+  document.addEventListener('mouseup', handleEnd);
+  
+  function handleStart(e) {
+    // Store if it's a touch or mouse event
+    const event = e.touches ? e.touches[0] : e;
+    startX = event.clientX;
+    startY = event.clientY;
+    
+    // Get current position from style
+    const style = window.getComputedStyle(btn);
+    startRight = parseInt(style.right);
+    startBottom = parseInt(style.bottom);
+    
+    isDragging = true;
+    hasMoved = false;
+    
+    // Prevent default to avoid page scrolling on mobile
+    if (e.cancelable) e.preventDefault();
+  }
+  
+  function handleMove(e) {
+    if (!isDragging) return;
+    
+    // Stop event propagation
+    e.stopPropagation();
+    if (e.cancelable) e.preventDefault();
+    
+    // Get current position
+    const event = e.touches ? e.touches[0] : e;
+    const deltaX = startX - event.clientX;
+    const deltaY = startY - event.clientY;
+    
+    // If moved more than 5px, consider it a drag rather than a click
+    if (!hasMoved && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
+      hasMoved = true;
+      btn.style.transition = 'none'; // Disable transitions during drag
+    }
+    
+    if (hasMoved) {
+      // Calculate new position
+      const newRight = Math.max(SCREEN_EDGE_PADDING, startRight + deltaX);
+      const newBottom = Math.max(SCREEN_EDGE_PADDING, startBottom - deltaY);
+      
+      // Apply new position
+      btn.style.right = `${newRight}px`;
+      btn.style.bottom = `${newBottom}px`;
+    }
+  }
+  
+  function handleEnd(e) {
+    if (!isDragging) return;
+    isDragging = false;
+    
+    if (hasMoved) {
+      // Re-enable transitions
+      btn.style.transition = "transform .2s, background .25s, box-shadow .25s";
+      
+      // Get final position and save it
+      const style = window.getComputedStyle(btn);
+      const finalBottom = parseInt(style.bottom);
+      const finalRight = parseInt(style.right);
+      
+      // Store the position
+      storeButtonPosition(finalBottom, finalRight);
+      
+      // Prevent the click event from firing
+      e.stopPropagation();
+      if (e.cancelable) e.preventDefault();
+    }
+  }
+  
+  // Add hover effects that respect dragging state
+  btn.addEventListener("mouseenter", () => { 
+    if (!isDragging) {
+      btn.style.transform = "scale(1.08)"; 
+      btn.style.boxShadow = "0 8px 24px rgba(0,0,0,0.2)";
+    }
+  });
+  
+  btn.addEventListener("mouseleave", () => { 
+    if (!isDragging) {
+      btn.style.transform = "scale(1)";
+      btn.style.boxShadow = "0 6px 18px rgba(0,0,0,0.15)"; 
+    }
+  });
+  
+  // Add click handler - Make sure it doesn't interfere with dragging
+  btn.addEventListener("click", (e) => {
+    // Only trigger click if not dragging
+    if (!hasMoved) {
+      onButtonClick(e);
+    }
+  });
+  
+  // Return variables that might be needed outside
+  return { isDragging, hasMoved };
+}
 
 /**
  * Helper function to create a logo image with proper attributes
@@ -40,22 +187,52 @@ function createLogoImage(src) {
 export function applyButtonResponsiveStyles(btn) {
   try {
     const mobile = window.matchMedia('(max-width: 640px)').matches;
+    const storedPosition = getStoredButtonPosition();
+    
     if (mobile) {
+      // Set up mobile styles with collision prevention
       Object.assign(btn.style, {
-        bottom: 'calc(16px + env(safe-area-inset-bottom, 0))',
-        right: '16px',
         width: '50px',  // Slightly smaller on mobile
         height: '50px'  // Maintain circle shape
       });
+      
+      // Apply stored position if available, otherwise use default
+      if (storedPosition) {
+        Object.assign(btn.style, {
+          bottom: storedPosition.bottom + 'px',
+          right: storedPosition.right + 'px'
+        });
+      } else {
+        // Default position that avoids common mobile elements
+        Object.assign(btn.style, {
+          bottom: 'calc(60px + env(safe-area-inset-bottom, 0))', // Higher up to avoid bottom nav bars
+          right: '16px'
+        });
+      }
     } else {
+      // Desktop styles
       Object.assign(btn.style, {
-        bottom: '20px',
-        right: '20px',
         width: '56px',  // Larger on desktop
         height: '56px'  // Maintain circle shape
       });
+      
+      // Apply stored position if available, otherwise use default
+      if (storedPosition) {
+        Object.assign(btn.style, {
+          bottom: storedPosition.bottom + 'px',
+          right: storedPosition.right + 'px'
+        });
+      } else {
+        // Default desktop position
+        Object.assign(btn.style, {
+          bottom: '20px',
+          right: '20px'
+        });
+      }
     }
-  } catch {}
+  } catch (e) {
+    log('Error applying responsive styles:', e);
+  }
 }
 
 /**
@@ -128,11 +305,17 @@ export function createButton(logoUrl) {
     padding: '12px',
     width: '56px',
     height: '56px',
-    borderRadius: '50%' // Make it a perfect circle
+    borderRadius: '50%', // Make it a perfect circle
+    touchAction: 'none' // Prevents default touch actions to enable better dragging
   });
+  
+  // Apply responsive styles (also applies stored position if available)
   applyButtonResponsiveStyles(btn);
   
-  // Add event listeners
+  // Make the button draggable - this also adds click and hover handlers
+  makeButtonDraggable(btn);
+  
+  // Add event listeners for responsive design
   let resizeTO;
   window.addEventListener('resize', () => { 
     clearTimeout(resizeTO); 
@@ -142,19 +325,6 @@ export function createButton(logoUrl) {
   
   // Set accessibility attributes
   btn.setAttribute("aria-label", "Get size recommendation");
-  
-  // Add hover effects
-  btn.addEventListener("mouseenter", () => { 
-    btn.style.transform = "scale(1.08)"; 
-    btn.style.boxShadow = "0 8px 24px rgba(0,0,0,0.2)";
-  });
-  btn.addEventListener("mouseleave", () => { 
-    btn.style.transform = "scale(1)";
-    btn.style.boxShadow = "0 6px 18px rgba(0,0,0,0.15)"; 
-  });
-  
-  // Add click handler
-  btn.addEventListener("click", onButtonClick);
   
   return btn;
 }

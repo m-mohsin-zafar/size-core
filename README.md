@@ -68,6 +68,9 @@ The widget displays as a subtle circular button with your logo:
 - Displays only your logo for a clean, minimal interface
 - Hover effects for better user interaction
 - Shadow effects that provide depth without being intrusive
+- Draggable functionality - users can position the button where they prefer
+- Position persistence - remembers the user's preferred position across page loads
+- Mobile-friendly positioning to avoid collisions with common UI elements
 
 You can customize the button's appearance by providing:
 
@@ -103,6 +106,16 @@ The widget has a robust fallback system for logo loading:
 3. If all attempts fail, it generates a simple SVG icon using the theme color
 
 The widget automatically handles navigation changes in single-page applications and re-injects itself when needed.
+
+#### Draggable Button Features
+
+The floating button includes advanced user-friendly features:
+
+- **Draggable Positioning**: Users can drag the button to any position on the screen
+- **Position Memory**: The button remembers its position across page refreshes using localStorage
+- **Edge Protection**: The button cannot be dragged off-screen
+- **Mobile Optimization**: On mobile devices, the button initially positions higher to avoid navigation bars and other common UI elements
+- **Smooth Transitions**: The button smoothly animates when hovered, but disables animations during dragging for better performance
 
 Inline SVG example:
 
