@@ -16,6 +16,16 @@ After `npm run build`, include the generated UMD or ES module file on host pages
 <script src="/dist/size-core.umd.js" data-store-id="your-store-id" data-logo="/path/to/your-logo.svg"></script>
 ```
 
+### Button Design
+
+The Size Core widget uses a modern, circular floating action button with the following characteristics:
+
+- **Circular Shape**: Clean, modern circular design that's consistent with current UI trends
+- **Logo-Only**: Uses a simple icon instead of text for a more elegant, universal interface
+- **Hover Effects**: Subtle scale and shadow effects on hover for better user feedback
+- **Responsive Sizing**: Automatically adjusts based on screen size
+- **Consistent Styling**: Maintains brand color scheme and visual language
+
 ### Logo Configuration
 
 The widget supports flexible logo configuration through data attributes on the script tag:
@@ -43,6 +53,30 @@ The widget supports flexible logo configuration through data attributes on the s
 - Use an SVG logo for best quality and scaling
 - Keep your logo simple and clean for better visibility
 - For optimal performance, host your logo on the same domain as your website to avoid CORS issues
+
+### Draggable Button Features
+
+The floating button includes advanced user-friendly features:
+
+- **Draggable Positioning**: Users can drag the button to any position on the screen
+- **Natural Drag Movement**: The button follows the finger/cursor with intuitive directional movement
+- **Position Memory**: The button remembers its position across page refreshes using localStorage
+- **Edge Protection**: The button cannot be dragged off-screen
+- **Mobile Optimization**: On mobile devices, the button initially positions higher to avoid navigation bars and other common UI elements
+- **Touch & Click Compatibility**: Works seamlessly with both touch and mouse interactions
+- **Smooth Transitions**: The button smoothly animates when hovered, but disables animations during dragging for better performance
+- **Resize Handling**: Button position is validated on window resize to prevent it from getting stuck off-screen
+
+### Mobile Optimization
+
+The Size Core widget is carefully optimized for mobile devices:
+
+- **Higher Initial Position**: Positioned higher on mobile screens to avoid navigation bars and other UI elements
+- **Touch-Friendly Size**: Appropriately sized for touch interactions (56px diameter)
+- **Smooth Touch Handling**: Separate touch event handling for reliable performance on mobile devices
+- **Drag Threshold**: Small movement threshold before activating drag to allow for normal taps
+- **Safe Area Insets**: Respects iOS safe area insets for notches and home indicators
+- **Orientation Change Support**: Properly handles device orientation changes
 
 ### Theme Customization
 
@@ -112,10 +146,13 @@ The widget automatically handles navigation changes in single-page applications 
 The floating button includes advanced user-friendly features:
 
 - **Draggable Positioning**: Users can drag the button to any position on the screen
+- **Natural Drag Movement**: The button follows the finger/cursor with intuitive directional movement
 - **Position Memory**: The button remembers its position across page refreshes using localStorage
 - **Edge Protection**: The button cannot be dragged off-screen
 - **Mobile Optimization**: On mobile devices, the button initially positions higher to avoid navigation bars and other common UI elements
+- **Touch & Click Compatibility**: Works seamlessly with both touch and mouse interactions
 - **Smooth Transitions**: The button smoothly animates when hovered, but disables animations during dragging for better performance
+- **Resize Handling**: Button position is validated on window resize to prevent it from getting stuck off-screen
 
 Inline SVG example:
 

@@ -7,6 +7,8 @@ import { renderDebugOverlay } from './size-guides.js';
 // Constants for button positioning
 const BUTTON_POSITION_STORAGE_KEY = 'size-core-button-position';
 const SCREEN_EDGE_PADDING = 10; // Minimum distance from screen edge
+const MAX_BOTTOM_POSITION = 300; // Maximum distance from bottom of screen
+const MAX_RIGHT_POSITION = 300; // Maximum distance from right of screen
 
 /**
  * Store button position in local storage
@@ -44,20 +46,104 @@ function makeButtonDraggable(btn) {
   let startRight, startBottom;
   let isDragging = false;
   let hasMoved = false;
+  let touchId = null; // Track which touch is being used for dragging
   
   // Touch events for mobile
-  btn.addEventListener('touchstart', handleStart, { passive: false });
-  document.addEventListener('touchmove', handleMove, { passive: false });
-  document.addEventListener('touchend', handleEnd);
+  btn.addEventListener('touchstart', handleTouchStart, { passive: false });
+  document.addEventListener('touchmove', handleTouchMove, { passive: false });
+  document.addEventListener('touchend', handleTouchEnd);
+  document.addEventListener('touchcancel', handleTouchEnd);
   
   // Mouse events for desktop
-  btn.addEventListener('mousedown', handleStart);
-  document.addEventListener('mousemove', handleMove);
-  document.addEventListener('mouseup', handleEnd);
+  btn.addEventListener('mousedown', handleMouseStart);
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseEnd);
   
-  function handleStart(e) {
-    // Store if it's a touch or mouse event
-    const event = e.touches ? e.touches[0] : e;
+  // We'll use a single click handler to avoid conflicts
+  btn.addEventListener('click', (e) => {
+    if (!hasMoved) {
+      onButtonClick(e);
+    } else {
+      // Prevent click after drag
+      e.preventDefault();
+      e.stopPropagation();
+    }
+  });
+  
+  // Touch-specific handlers
+  function handleTouchStart(e) {
+    if (e.touches.length !== 1) return; // Only handle single touches
+    
+    touchId = e.touches[0].identifier;
+    startDrag(e.touches[0]);
+    
+    // We don't prevent default here to allow click events to work
+    // Only prevent if clearly a drag operation
+  }
+  
+  function handleTouchMove(e) {
+    if (!isDragging) return;
+    
+    // Find our tracked touch
+    let touch = null;
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === touchId) {
+        touch = e.changedTouches[i];
+        break;
+      }
+    }
+    
+    if (!touch) return;
+    
+    // Now that we're definitely dragging, prevent default to stop scrolling
+    if (e.cancelable) e.preventDefault();
+    
+    processDrag(touch, e);
+  }
+  
+  function handleTouchEnd(e) {
+    // Check if our touch ended
+    for (let i = 0; i < e.changedTouches.length; i++) {
+      if (e.changedTouches[i].identifier === touchId) {
+        endDrag(e);
+        
+        // Reset state but don't prevent click if we didn't move
+        touchId = null;
+        
+        // Important: Reset hasMoved after a short delay to allow the click event to fire
+        if (!hasMoved) {
+          // Don't do anything special, let the click event fire naturally
+        } else {
+          // Prevent any subsequent click events if we definitely dragged
+          e.preventDefault();
+          e.stopPropagation();
+        }
+        
+        break;
+      }
+    }
+  }
+  
+  // Mouse-specific handlers
+  function handleMouseStart(e) {
+    startDrag(e);
+    if (e.cancelable) e.preventDefault();
+  }
+  
+  function handleMouseMove(e) {
+    if (!isDragging) return;
+    processDrag(e, e);
+  }
+  
+  function handleMouseEnd(e) {
+    if (isDragging) {
+      endDrag(e);
+    }
+  }
+  
+  // Shared drag logic
+  function startDrag(event) {
+    // Store initial positions
     startX = event.clientX;
     startY = event.clientY;
     
@@ -68,22 +154,18 @@ function makeButtonDraggable(btn) {
     
     isDragging = true;
     hasMoved = false;
-    
-    // Prevent default to avoid page scrolling on mobile
-    if (e.cancelable) e.preventDefault();
   }
   
-  function handleMove(e) {
+  function processDrag(event, originalEvent) {
     if (!isDragging) return;
     
     // Stop event propagation
-    e.stopPropagation();
-    if (e.cancelable) e.preventDefault();
+    originalEvent.stopPropagation();
+    if (originalEvent.cancelable) originalEvent.preventDefault();
     
-    // Get current position
-    const event = e.touches ? e.touches[0] : e;
-    const deltaX = startX - event.clientX;
-    const deltaY = startY - event.clientY;
+    // Calculate the delta (how much the finger/mouse has moved)
+    const deltaX = event.clientX - startX;
+    const deltaY = event.clientY - startY;
     
     // If moved more than 5px, consider it a drag rather than a click
     if (!hasMoved && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
@@ -92,9 +174,15 @@ function makeButtonDraggable(btn) {
     }
     
     if (hasMoved) {
-      // Calculate new position
-      const newRight = Math.max(SCREEN_EDGE_PADDING, startRight + deltaX);
-      const newBottom = Math.max(SCREEN_EDGE_PADDING, startBottom - deltaY);
+      // Calculate new position with corrected direction logic
+      const newRight = Math.min(
+        Math.max(SCREEN_EDGE_PADDING, startRight - deltaX), 
+        MAX_RIGHT_POSITION
+      );
+      const newBottom = Math.min(
+        Math.max(SCREEN_EDGE_PADDING, startBottom - deltaY),
+        MAX_BOTTOM_POSITION
+      );
       
       // Apply new position
       btn.style.right = `${newRight}px`;
@@ -102,7 +190,7 @@ function makeButtonDraggable(btn) {
     }
   }
   
-  function handleEnd(e) {
+  function endDrag(originalEvent) {
     if (!isDragging) return;
     isDragging = false;
     
@@ -118,10 +206,16 @@ function makeButtonDraggable(btn) {
       // Store the position
       storeButtonPosition(finalBottom, finalRight);
       
-      // Prevent the click event from firing
-      e.stopPropagation();
-      if (e.cancelable) e.preventDefault();
+      // For touch events, prevent click if we dragged
+      if (originalEvent.type.startsWith('touch') && originalEvent.cancelable) {
+        originalEvent.preventDefault();
+      }
     }
+    
+    // Reset hasMoved after a small delay to allow any click event to fire first
+    setTimeout(() => {
+      hasMoved = false;
+    }, 50);
   }
   
   // Add hover effects that respect dragging state
@@ -136,14 +230,6 @@ function makeButtonDraggable(btn) {
     if (!isDragging) {
       btn.style.transform = "scale(1)";
       btn.style.boxShadow = "0 6px 18px rgba(0,0,0,0.15)"; 
-    }
-  });
-  
-  // Add click handler - Make sure it doesn't interfere with dragging
-  btn.addEventListener("click", (e) => {
-    // Only trigger click if not dragging
-    if (!hasMoved) {
-      onButtonClick(e);
     }
   });
   
@@ -188,50 +274,56 @@ export function applyButtonResponsiveStyles(btn) {
   try {
     const mobile = window.matchMedia('(max-width: 640px)').matches;
     const storedPosition = getStoredButtonPosition();
+    const windowWidth = window.innerWidth;
+    const windowHeight = window.innerHeight;
     
-    if (mobile) {
-      // Set up mobile styles with collision prevention
-      Object.assign(btn.style, {
-        width: '50px',  // Slightly smaller on mobile
-        height: '50px'  // Maintain circle shape
-      });
+    // Base size based on device
+    let size = mobile ? 50 : 56;
+    
+    // Make sure position is within valid screen bounds
+    let bottom = 20;
+    let right = 20;
+    
+    if (storedPosition) {
+      // Validate stored position to ensure it's within screen bounds
+      bottom = Math.min(storedPosition.bottom, windowHeight - size - SCREEN_EDGE_PADDING);
+      right = Math.min(storedPosition.right, windowWidth - size - SCREEN_EDGE_PADDING);
       
-      // Apply stored position if available, otherwise use default
-      if (storedPosition) {
-        Object.assign(btn.style, {
-          bottom: storedPosition.bottom + 'px',
-          right: storedPosition.right + 'px'
-        });
-      } else {
-        // Default position that avoids common mobile elements
-        Object.assign(btn.style, {
-          bottom: 'calc(60px + env(safe-area-inset-bottom, 0))', // Higher up to avoid bottom nav bars
-          right: '16px'
-        });
-      }
+      // Enforce minimums
+      bottom = Math.max(SCREEN_EDGE_PADDING, bottom);
+      right = Math.max(SCREEN_EDGE_PADDING, right);
     } else {
-      // Desktop styles
-      Object.assign(btn.style, {
-        width: '56px',  // Larger on desktop
-        height: '56px'  // Maintain circle shape
-      });
-      
-      // Apply stored position if available, otherwise use default
-      if (storedPosition) {
-        Object.assign(btn.style, {
-          bottom: storedPosition.bottom + 'px',
-          right: storedPosition.right + 'px'
-        });
+      // Default positions
+      if (mobile) {
+        bottom = Math.max(60, SCREEN_EDGE_PADDING + (window.visualViewport ? window.visualViewport.height * 0.15 : 60));
+        right = 16;
       } else {
-        // Default desktop position
-        Object.assign(btn.style, {
-          bottom: '20px',
-          right: '20px'
-        });
+        bottom = 20;
+        right = 20;
       }
+    }
+    
+    // Apply validated position and size
+    Object.assign(btn.style, {
+      width: `${size}px`,
+      height: `${size}px`,
+      bottom: `${bottom}px`,
+      right: `${right}px`
+    });
+    
+    // For mobile, add safe area inset to avoid notches and home indicators
+    if (mobile) {
+      btn.style.bottom = `calc(${bottom}px + env(safe-area-inset-bottom, 0px))`;
     }
   } catch (e) {
     log('Error applying responsive styles:', e);
+    // Fallback to basic positioning if something goes wrong
+    Object.assign(btn.style, {
+      width: '50px',
+      height: '50px',
+      bottom: '20px',
+      right: '20px'
+    });
   }
 }
 

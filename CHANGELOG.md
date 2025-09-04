@@ -1,0 +1,29 @@
+# Changelog
+
+## v0.2.1 (Current)
+
+### Fixes
+- Fixed critical issue with button clicks not working after the first click
+- Improved touch event handling to properly distinguish between taps and drags
+- Enhanced event propagation management to prevent conflicts between drag and click events
+- Added proper event cleanup and state reset after interactions
+- Fixed issue with hover effects not being applied properly
+
+## v0.2.0 
+
+### Features
+- Complete redesign of the button to a circular, logo-only style
+- Added draggable functionality with position memory across page refreshes
+- Improved mobile compatibility with touch-specific event handling
+- Fixed issues with drag direction for more intuitive movement
+- Added position validation to keep button within screen boundaries
+- Enhanced responsiveness for different screen sizes and orientations
+- Added resize handling to prevent button from moving off-screen
+- Improved SVG logo handling with fallback options
+
+### Fixes
+- Fixed issue with mobile click events not firing properly
+- Corrected drag direction to match finger/cursor movement
+- Fixed potential issues with multiple touch points
+- Improved error handling throughout the codebase
+- Fixed positioning when transitioning between mobile and desktop views
