@@ -41,21 +41,24 @@ function getStoredButtonPosition() {
 /**
  * Make button draggable
  */
-function makeButtonDraggable(btn) {
+function makeButtonDraggable(container) {
   let startX, startY;
   let startRight, startBottom;
   let isDragging = false;
   let hasMoved = false;
   let touchId = null; // Track which touch is being used for dragging
   
+  // Get the actual button element inside the container
+  const btn = container.querySelector('#size-core-floating-btn');
+  
   // Touch events for mobile
-  btn.addEventListener('touchstart', handleTouchStart, { passive: false });
+  container.addEventListener('touchstart', handleTouchStart, { passive: false });
   document.addEventListener('touchmove', handleTouchMove, { passive: false });
   document.addEventListener('touchend', handleTouchEnd);
   document.addEventListener('touchcancel', handleTouchEnd);
   
   // Mouse events for desktop
-  btn.addEventListener('mousedown', handleMouseStart);
+  container.addEventListener('mousedown', handleMouseStart);
   document.addEventListener('mousemove', handleMouseMove);
   document.addEventListener('mouseup', handleMouseEnd);
   
@@ -148,7 +151,7 @@ function makeButtonDraggable(btn) {
     startY = event.clientY;
     
     // Get current position from style
-    const style = window.getComputedStyle(btn);
+    const style = window.getComputedStyle(container);
     startRight = parseInt(style.right);
     startBottom = parseInt(style.bottom);
     
@@ -170,7 +173,7 @@ function makeButtonDraggable(btn) {
     // If moved more than 5px, consider it a drag rather than a click
     if (!hasMoved && (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5)) {
       hasMoved = true;
-      btn.style.transition = 'none'; // Disable transitions during drag
+      container.style.transition = 'none'; // Disable transitions during drag
     }
     
     if (hasMoved) {
@@ -179,8 +182,8 @@ function makeButtonDraggable(btn) {
       const viewportHeight = window.innerHeight || document.documentElement.clientHeight;
       
       // Calculate maximum positions based on viewport size
-      const maxRight = Math.min(viewportWidth * MAX_DISTANCE_PERCENTAGE, viewportWidth - btn.offsetWidth - SCREEN_EDGE_PADDING);
-      const maxBottom = Math.min(viewportHeight * MAX_DISTANCE_PERCENTAGE, viewportHeight - btn.offsetHeight - SCREEN_EDGE_PADDING);
+      const maxRight = Math.min(viewportWidth * MAX_DISTANCE_PERCENTAGE, viewportWidth - container.offsetWidth - SCREEN_EDGE_PADDING);
+      const maxBottom = Math.min(viewportHeight * MAX_DISTANCE_PERCENTAGE, viewportHeight - container.offsetHeight - SCREEN_EDGE_PADDING);
       
       // Calculate new position with corrected direction logic and dynamic limits
       const newRight = Math.min(
@@ -193,8 +196,8 @@ function makeButtonDraggable(btn) {
       );
       
       // Apply new position
-      btn.style.right = `${newRight}px`;
-      btn.style.bottom = `${newBottom}px`;
+      container.style.right = `${newRight}px`;
+      container.style.bottom = `${newBottom}px`;
     }
   }
   
@@ -204,10 +207,10 @@ function makeButtonDraggable(btn) {
     
     if (hasMoved) {
       // Re-enable transitions
-      btn.style.transition = "transform .2s, background .25s, box-shadow .25s";
+      container.style.transition = "all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.0)";
       
       // Get final position and save it
-      const style = window.getComputedStyle(btn);
+      const style = window.getComputedStyle(container);
       const finalBottom = parseInt(style.bottom);
       const finalRight = parseInt(style.right);
       
@@ -227,17 +230,33 @@ function makeButtonDraggable(btn) {
   }
   
   // Add hover effects that respect dragging state
-  btn.addEventListener("mouseenter", () => { 
+  container.addEventListener("mouseenter", () => { 
     if (!isDragging) {
-      btn.style.transform = "scale(1.08)"; 
-      btn.style.boxShadow = "0 8px 24px rgba(0,0,0,0.2)";
+      btn.style.transform = "scale(1.08)";
+      
+      // Use different border based on button state (circular or rectangular)
+      if (btn.classList.contains('circular')) {
+        btn.style.border = "1px solid rgba(0,0,0,0.18)";
+        btn.style.background = "#fafafa";
+      } else {
+        btn.style.border = "1px solid rgba(0,0,0,0.15)";
+        btn.style.background = "#f8f8f8";
+      }
     }
   });
   
-  btn.addEventListener("mouseleave", () => { 
+  container.addEventListener("mouseleave", () => { 
     if (!isDragging) {
       btn.style.transform = "scale(1)";
-      btn.style.boxShadow = "0 6px 18px rgba(0,0,0,0.15)"; 
+      
+      // Restore default styles based on button state
+      if (btn.classList.contains('circular')) {
+        btn.style.border = "1px solid rgba(0,0,0,0.12)";
+        btn.style.background = "#ffffff";
+      } else {
+        btn.style.border = "1px solid rgba(0,0,0,0.08)";
+        btn.style.background = "#ffffff";
+      }
     }
   });
   
@@ -278,7 +297,7 @@ function createLogoImage(src) {
 /**
  * Apply responsive styles to the button
  */
-export function applyButtonResponsiveStyles(btn) {
+export function applyButtonResponsiveStyles(btnContainer) {
   try {
     const mobile = window.matchMedia('(max-width: 640px)').matches;
     const storedPosition = getStoredButtonPosition();
@@ -322,24 +341,30 @@ export function applyButtonResponsiveStyles(btn) {
       }
     }
     
-    // Apply validated position and size
-    Object.assign(btn.style, {
-      width: `${size}px`,
-      height: `${size}px`,
+    // Apply validated position and size to the container
+    Object.assign(btnContainer.style, {
       bottom: `${bottom}px`,
       right: `${right}px`
     });
     
     // For mobile, add safe area inset to avoid notches and home indicators
     if (mobile) {
-      btn.style.bottom = `calc(${bottom}px + env(safe-area-inset-bottom, 0px))`;
+      btnContainer.style.bottom = `calc(${bottom}px + env(safe-area-inset-bottom, 0px))`;
+    }
+
+    // Check if the button has already been animated to circular
+    const btn = btnContainer.querySelector('#size-core-floating-btn');
+    if (btn && btn.classList.contains('circular')) {
+      // If already circular, just update the size
+      Object.assign(btn.style, {
+        width: `${size}px`,
+        height: `${size}px`
+      });
     }
   } catch (e) {
     log('Error applying responsive styles:', e);
     // Fallback to basic positioning if something goes wrong
-    Object.assign(btn.style, {
-      width: '50px',
-      height: '50px',
+    Object.assign(btnContainer.style, {
       bottom: '20px',
       right: '20px'
     });
@@ -347,24 +372,94 @@ export function applyButtonResponsiveStyles(btn) {
 }
 
 /**
+ * Animate the button from rectangular with text to circular with only logo
+ */
+function animateToCircularButton(btn, textSpan, logoContainer, buttonContainer) {
+  // First fade out the text
+  textSpan.style.opacity = "0";
+  textSpan.style.transform = "translateX(20px)";
+  
+  // After the text starts fading, begin transforming the button shape
+  setTimeout(() => {
+    // Animate to circular button
+    Object.assign(btn.style, {
+      borderRadius: "50%",
+      width: "56px", // Will be updated by responsive styles if needed
+      minWidth: "56px",
+      padding: "12px",
+      justifyContent: "center",
+      boxShadow: "none", // Remove shadow
+      border: "1px solid rgba(0,0,0,0.12)" // Add more visible border
+    });
+    
+    // Ensure logo is centered
+    Object.assign(logoContainer.style, {
+      margin: "0 auto",
+      transform: "scale(1.1)" // Slightly enlarge the logo
+    });
+    
+    // Hide text completely when animation completes
+    setTimeout(() => {
+      textSpan.style.display = "none";
+      // Mark the button as circular for future reference
+      btn.classList.add("circular");
+    }, 800); // Increased from 500ms
+    
+  }, 400); // Increased from 200ms
+}
+
+/**
  * Create the floating button with logo
  */
 export function createButton(logoUrl) {
   if (document.getElementById("size-core-floating-btn")) return null;
+  
+  // Create the outer container that will handle the animation
+  const buttonContainer = document.createElement("div");
+  buttonContainer.id = "size-core-floating-container";
+  Object.assign(buttonContainer.style, {
+    position: "fixed",
+    bottom: "16px",
+    right: "16px",
+    zIndex: 100000,
+    transition: "all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.0)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden"
+  });
+  
+  // Create the button element
   const btn = document.createElement("button");
   btn.id = "size-core-floating-btn";
+  
+  // Create initial text span
+  const textSpan = document.createElement("span");
+  textSpan.id = "size-core-btn-text";
+  textSpan.textContent = "Get Size Recommendation";
+  Object.assign(textSpan.style, {
+    marginRight: "10px",
+    transition: "opacity 0.5s ease-out, transform 0.5s ease-out", // Increased animation time
+    opacity: "1",
+    transform: "translateX(0)",
+    whiteSpace: "nowrap",
+    fontWeight: "600" // Make text bold
+  });
   
   // Create logo container with fixed dimensions for consistent layout
   const logoContainer = document.createElement('div');
   logoContainer.className = 'size-core-logo-container';
+  logoContainer.id = 'size-core-logo-container';
   Object.assign(logoContainer.style, {
-    width: '32px',
-    height: '32px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    overflow: 'hidden',
-    margin: '0'
+    width: "32px",
+    height: "32px",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    overflow: "hidden",
+    margin: "0",
+    transition: "transform 0.3s ease-out",
+    transform: "scale(1)"
   });
   
   // Check if logoUrl is an SVG data URI
@@ -394,50 +489,58 @@ export function createButton(logoUrl) {
     logoContainer.appendChild(img);
   }
   
-  // Add logo container to button
+  // Add text and logo to button
+  btn.appendChild(textSpan);
   btn.appendChild(logoContainer);
   
-  // Style the button as a circle with only the logo
+  // Style the button for initial state - rectangular with text and logo
   Object.assign(btn.style, {
-    position: "fixed",
-    bottom: "16px",
-    right: "16px",
+    position: "relative", // Changed from fixed to relative
     background: "#ffffff",
     color: "#111",
     border: "1px solid rgba(0,0,0,0.08)",
     cursor: "pointer",
-    zIndex: 100000,
-    boxShadow: "0 6px 18px rgba(0,0,0,0.15)",
-    transition: "transform .2s, background .25s, box-shadow .25s",
+    boxShadow: "none", // Remove shadow
+    transition: "all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1.0)", // Increased animation time
     boxSizing: 'border-box',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    padding: '12px',
-    width: '56px',
-    height: '56px',
-    borderRadius: '50%', // Make it a perfect circle
-    touchAction: 'none' // Prevents default touch actions to enable better dragging
+    padding: '12px 20px',
+    borderRadius: '10px', // Start with rounded rectangle
+    touchAction: 'none', // Prevents default touch actions to enable better dragging
+    width: 'auto',
+    minWidth: '220px', // Ensure enough space for text
+    height: '56px'
   });
   
-  // Apply responsive styles (also applies stored position if available)
-  applyButtonResponsiveStyles(btn);
+  // Add button to container
+  buttonContainer.appendChild(btn);
   
-  // Make the button draggable - this also adds click and hover handlers
-  makeButtonDraggable(btn);
+  // Apply responsive styles to container (also applies stored position if available)
+  applyButtonResponsiveStyles(buttonContainer);
+  
+  // Make the button draggable
+  makeButtonDraggable(buttonContainer);
   
   // Add event listeners for responsive design
   let resizeTO;
   window.addEventListener('resize', () => { 
     clearTimeout(resizeTO); 
-    resizeTO = setTimeout(() => applyButtonResponsiveStyles(btn), 80); 
+    resizeTO = setTimeout(() => applyButtonResponsiveStyles(buttonContainer), 80); 
   });
-  window.addEventListener('orientationchange', () => setTimeout(() => applyButtonResponsiveStyles(btn), 120));
+  window.addEventListener('orientationchange', () => setTimeout(() => applyButtonResponsiveStyles(buttonContainer), 120));
   
   // Set accessibility attributes
   btn.setAttribute("aria-label", "Get size recommendation");
+  textSpan.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
   
-  return btn;
+  // Trigger animation after a short delay to ensure the button is visible first
+  setTimeout(() => {
+    animateToCircularButton(btn, textSpan, logoContainer, buttonContainer);
+  }, 3500); // Increased from 2000ms
+  
+  return buttonContainer;
 }
 
 /**
@@ -457,7 +560,12 @@ const MAX_INJECT_ATTEMPTS = 10; // safety bound
  */
 export function injectButtonIfNeeded(logoUrl, force=false) {
   if (!document.body) return;
-  if (!force && document.getElementById("size-core-floating-btn")) return; // already there
+  
+  // Check if button already exists
+  if (!force && (document.getElementById("size-core-floating-container") || document.getElementById("size-core-floating-btn"))) {
+    return; // already there
+  }
+  
   const pdp = isProductPage();
   if (!pdp) {
     if (_injectAttempts < MAX_INJECT_ATTEMPTS) {
@@ -466,10 +574,16 @@ export function injectButtonIfNeeded(logoUrl, force=false) {
     }
     return;
   }
-  if (document.getElementById("size-core-floating-btn")) return; // re-check after async
-  const btn = createButton(logoUrl);
-  if (!btn) return;
-  document.body.appendChild(btn);
+  
+  // Double check after async
+  if (document.getElementById("size-core-floating-container") || document.getElementById("size-core-floating-btn")) {
+    return;
+  }
+  
+  const buttonContainer = createButton(logoUrl);
+  if (!buttonContainer) return;
+  
+  document.body.appendChild(buttonContainer);
   log("Injected button (attempt", _injectAttempts, ")");
   if (DEBUG) renderDebugOverlay();
 }
