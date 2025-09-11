@@ -2,7 +2,8 @@
 export const config = {
   // Logo strategy (resolved in main index.js)
   FALLBACK_URL_FRAGMENT: "/dev-g28fdlssrobui45i/%D9%81%D8%B3%D8%AA%D8%A7%D9%86/p1123056285".toLowerCase(),
-  EXTERNAL_FLOW_BASE: "https://staging.miqyas.ai/guided-photos",
+  EXTERNAL_FLOW_BASE: "https://staging.miqyas.ai/guided-photos?source=salla",
+  // EXTERNAL_FLOW_BASE: "https://192.168.2.18:3000/guided-photos?source=salla",
   TRACK_CLICK_ENDPOINT: "https://your-saas.com/track-click", // TODO: adjust
   TRACK_RETURN_ENDPOINT: "https://your-saas.com/track-return", // TODO: adjust
   WIDGET_ID: "size-core-widget",

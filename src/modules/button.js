@@ -287,7 +287,7 @@ function createLogoImage(src) {
     img.src = '/logo.svg'; // Try SVG fallback
     img.onerror = () => {
       log('Fallback SVG failed, using PNG');
-      img.src = '/logo.png'; // Final fallback
+      img.src = '/logo.svg'; // Final fallback
     };
   };
   
@@ -534,6 +534,7 @@ export function createButton(logoUrl) {
   // Set accessibility attributes
   btn.setAttribute("aria-label", "Get size recommendation");
   textSpan.style.fontFamily = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif";
+  textSpan.style.margin = "2px";
   
   // Trigger animation after a short delay to ensure the button is visible first
   setTimeout(() => {
@@ -548,6 +549,10 @@ export function createButton(logoUrl) {
  */
 export function onButtonClick(e) {
   e.preventDefault();
+  // Reset the manual close flag when user explicitly clicks the button
+  window.__sizeCoreWidgetManuallyClosed = false;
+  // Set flag to indicate explicit opening
+  window.__sizeCoreWidgetExplicitOpen = true;
   openWidget();
 }
 

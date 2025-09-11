@@ -2,6 +2,11 @@ import { config, FLOW_ORIGIN } from './config.js';
 import { escapeHTML, log, genUUID } from './utils.js';
 import { resolveProductId } from './product-detection.js';
 import { trackClick } from './size-guides.js';
+import { setupIframeMessageListener, sendMessageToIframe, getIframeData } from './iframe-communication.js';
+
+// Import Salla-specific handlers
+export { showSallaRecommendation, showSallaError } from './widget-salla-handlers.js';
+export { showSallaStatus } from './widget-status.js';
 
 /**
  * Create the shell for the widget
@@ -63,7 +68,7 @@ export function ensureWidgetShell() {
   content.id = config.WIDGET_GREETING_ID;
   Object.assign(content.style, {
     flex: 1,
-    overflow: "hidden",
+    overflow: "auto",
     display: "flex",
     flexDirection: "column",
     padding: "28px 20px",
@@ -89,7 +94,15 @@ export function ensureWidgetShell() {
     boxShadow: "0 6px 18px rgba(0,0,0,0.15)",
     alignSelf: "flex-start"
   });
-  startBtn.addEventListener("click", () => loadFlowIframe(shell));
+  startBtn.addEventListener("click", () => {
+    // Import and use clearMeasurementData to ensure a fresh start
+    import('./iframe-communication.js').then(module => {
+      if (module.clearMeasurementData) {
+        module.clearMeasurementData();
+      }
+      loadFlowIframe(shell);
+    });
+  });
   greet.appendChild(startBtn);
   content.appendChild(greet);
   shell.appendChild(content);
@@ -102,12 +115,43 @@ export function ensureWidgetShell() {
  * Open the widget
  */
 export function openWidget() {
+  // If the widget was manually closed, don't auto-reopen
+  // But allow explicit opening from a button click
+  const wasExplicitlyOpened = window.__sizeCoreWidgetExplicitOpen;
+  if (window.__sizeCoreWidgetManuallyClosed && !wasExplicitlyOpened) {
+    log('Widget was manually closed - preventing auto-reopen');
+    return;
+  }
+  
+  // Reset the explicit open flag
+  window.__sizeCoreWidgetExplicitOpen = false;
+  
   const shell = ensureWidgetShell();
-  requestAnimationFrame(() => {
-    shell.style.pointerEvents = "auto";
-    shell.style.opacity = "1";
-    shell.style.transform = "translateY(0)";
-  });
+  
+  // Check if we have stored results to display
+  const iframeData = getIframeData();
+  const hasSallaResults = iframeData && iframeData.sallaResults;
+  
+  if (hasSallaResults) {
+    // Show stored results if available
+    import('./widget-salla-handlers.js').then(module => {
+      // Show the shell first
+      shell.style.pointerEvents = "auto";
+      shell.style.opacity = "1";
+      shell.style.transform = "translateY(0)";
+      
+      // Then populate with the last results
+      setTimeout(() => module.showSallaRecommendation(iframeData.sallaResults, true), 300);
+    });
+  } else {
+    // Just show the shell with the default greeting
+    requestAnimationFrame(() => {
+      shell.style.pointerEvents = "auto";
+      shell.style.opacity = "1";
+      shell.style.transform = "translateY(0)";
+    });
+  }
+  
   trackClick("widget_open");
 }
 
@@ -117,11 +161,38 @@ export function openWidget() {
 export function closeWidget() {
   const shell = document.getElementById(config.WIDGET_ID);
   if (!shell) return;
+  
+  log('Closing widget');
+  
+  // Set a flag to prevent auto-reopening
+  window.__sizeCoreWidgetManuallyClosed = true;
+  
+  // Apply closing styles
   shell.style.opacity = "0";
   shell.style.pointerEvents = "none";
   shell.style.transform = "translateY(8px)";
+  
+  // Track the event
+  trackClick("widget_closed");
+  
   setTimeout(() => {
-    // optional: keep in DOM for re-open
+    // Clear any iframe to prevent communication issues
+    const iframe = document.getElementById(config.WIDGET_IFRAME_ID);
+    if (iframe && iframe.parentNode) {
+      iframe.parentNode.removeChild(iframe);
+      
+      // Restore the greeting UI
+      const shell = document.getElementById(config.WIDGET_ID);
+      if (shell) {
+        const content = shell.querySelector(`#${config.WIDGET_GREETING_ID}`);
+        if (content && content.innerHTML === "") {
+          // Import and use the widget-status to recreate the greeting
+          import('./widget-status.js').then(module => {
+            module.showSallaStatus(shell);
+          });
+        }
+      }
+    }
   }, 300);
 }
 
@@ -154,6 +225,14 @@ export function loadFlowIframe(shell) {
   // If already loaded, nothing
   if (document.getElementById(config.WIDGET_IFRAME_ID)) return;
   
+  // Reset the manual close flag as this is an explicit user action
+  window.__sizeCoreWidgetManuallyClosed = false;
+  
+  // Import the showConnectingUI function and display connecting UI
+  import('./widget-connect.js').then(({ showConnectingUI }) => {
+    showConnectingUI();
+  });
+  
   // First request camera permissions from the parent page
   requestCameraPermission().then(permissionGranted => {
     const pid = resolveProductId();
@@ -169,8 +248,16 @@ export function loadFlowIframe(shell) {
     
     // Add store ID to the URL if available
     if (config.STORE_ID) {
-      flowURL.searchParams.set("store_id", config.STORE_ID);
+      flowURL.searchParams.set("store", config.STORE_ID); // Changed from storeId to store to match the URL format
     }
+    
+    // Add key_type if available from Salla connected message
+    const iframeData = getIframeData();
+    if (iframeData && iframeData.keyType) {
+      flowURL.searchParams.set("key_type", iframeData.keyType);
+    }
+
+    console.log(flowURL.toString());
     
     const frame = document.createElement("iframe");
     frame.id = config.WIDGET_IFRAME_ID;
@@ -180,12 +267,13 @@ export function loadFlowIframe(shell) {
     frame.allow = "camera; microphone";
     
     Object.assign(frame.style, {
-      border: "0 none",
-      width: "100%",
-      height: "100%",
+      border: "1px solid #e0e0e0",
+      maxHeight: "80vh",
       flex: 1,
       background: "#fff",
-      borderRadius: "0"
+      borderRadius: "8px",
+      margin: "4px",
+      boxShadow: "0 2px 10px rgba(0,0,0,0.05)"
     });
     
     // Replace greeting content with iframe
@@ -196,6 +284,10 @@ export function loadFlowIframe(shell) {
     } else {
       shell.appendChild(frame);
     }
+
+    // Set up message listener to receive data from the iframe
+    setupIframeMessageListener(frame);
+    
     trackClick("flow_loaded");
   });
 }
@@ -205,6 +297,49 @@ export function loadFlowIframe(shell) {
  */
 export function handleIframeMessage(ev) {
   try {
+    // Handle Salla messages (accept from any origin)
+    if (ev.data && ev.data.type) {
+      const data = ev.data;
+      
+      switch (data.type) {
+        case 'SALLA_CONNECTED':
+          log("Received SALLA_CONNECTED message from:", ev.origin);
+          // Store the data and show a message in the widget
+          if (data.storeId) {
+            log("Salla Connected - Store ID:", data.storeId, "Environment:", data.key_type);
+            
+            // Import the status function dynamically to avoid circular dependencies
+            import('./widget-status.js').then(module => {
+              module.showSallaStatus(data);
+            });
+          }
+          return;
+          
+        case 'SALLA_RESULTS':
+          log("Received SALLA_RESULTS message from:", ev.origin);
+          // Show results in the widget
+          if (data.results && data.results.recommendedSize) {
+            // Import the handler dynamically to avoid circular dependencies
+            import('./widget-salla-handlers.js').then(module => {
+              module.showSallaRecommendation(data);
+            });
+          }
+          return;
+          
+        case 'SALLA_ERROR':
+          log("Received SALLA_ERROR message from:", ev.origin);
+          // Show error in the widget
+          if (data.message) {
+            // Import the handler dynamically to avoid circular dependencies
+            import('./widget-salla-handlers.js').then(module => {
+              module.showSallaError(data);
+            });
+          }
+          return;
+      }
+    }
+    
+    // For other messages, enforce origin if configured
     if (FLOW_ORIGIN && ev.origin !== FLOW_ORIGIN) return; // enforce origin
     const data = ev.data;
     if (!data || typeof data !== "object") return;
@@ -277,21 +412,4 @@ export function showInlineRecommendation(payload) {
   if (btnClose) btnClose.addEventListener("click", closeWidget);
 }
 
-/**
- * Show error message inside the widget
- */
-export function showInlineError(message) {
-  const shell = document.getElementById(config.WIDGET_ID);
-  if (!shell) return;
-  const container = shell.querySelector(`#${config.WIDGET_GREETING_ID}`) || shell;
-  container.innerHTML = `<div style="padding:40px 24px;text-align:center;">
-    <h3 style="margin:0 0 12px;font-size:20px;">Something went wrong</h3>
-    <p style="margin:0 0 24px;color:#555;">${escapeHTML(String(message))}</p>
-    <button id="size-core-retry" style="background:#ff6f61;color:#fff;border:0;border-radius:8px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;">Retry</button>
-    <button id="size-core-close-error" style="margin-left:12px;background:#ddd;color:#222;border:0;border-radius:8px;padding:12px 20px;font-size:14px;font-weight:600;cursor:pointer;">Close</button>
-  </div>`;
-  const retry = container.querySelector('#size-core-retry');
-  if (retry) retry.addEventListener('click', () => loadFlowIframe(shell));
-  const closeBtn = container.querySelector('#size-core-close-error');
-  if (closeBtn) closeBtn.addEventListener('click', closeWidget);
-}
+
