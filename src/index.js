@@ -50,6 +50,12 @@ import { showConnectingUI } from './modules/widget-connect.js';
           config.LOGO_PATH = dataAttrs.logo;
         }
         
+        // Powered-by logo configuration
+        if (dataAttrs.poweredBy) {
+          log('Detected powered-by logo path:', dataAttrs.poweredBy);
+          config.POWERED_BY_LOGO = dataAttrs.poweredBy;
+        }
+        
         // Theme color configuration (optional for future use)
         if (dataAttrs.themeColor) {
           log('Detected theme color:', dataAttrs.themeColor);
@@ -115,6 +121,68 @@ import { showConnectingUI } from './modules/widget-connect.js';
     
     return svgToDataURI(fallbackSVG);
   };
+  
+  /**
+   * Load the powered-by logo if specified
+   */
+  const loadPoweredByLogo = async () => {
+    if (!config.POWERED_BY_LOGO) return null;
+    
+    // If it's already an inline SVG, return it as is
+    if (config.POWERED_BY_LOGO.includes('<svg') || config.POWERED_BY_LOGO.startsWith('data:image/svg+xml')) {
+      return config.POWERED_BY_LOGO;
+    }
+    
+    // Try each extension for the powered-by logo
+    const extensions = ['.svg', '.png', '.jpg', '.jpeg', '.webp'];
+    const basePath = config.POWERED_BY_LOGO.replace(/\.\w+$/, ''); // Remove extension if present
+    
+    // First try with the original path
+    try {
+      log('Loading powered-by logo from:', config.POWERED_BY_LOGO);
+      // If path ends with .svg, try to fetch and inline with white color
+      if (config.POWERED_BY_LOGO.toLowerCase().endsWith('.svg')) {
+        const svgData = await fetchSVG(config.POWERED_BY_LOGO, '#ffffff');
+        if (svgData) {
+          log('Successfully loaded powered-by SVG with white color');
+          return svgData;
+        }
+      } else {
+        // For non-SVG files, just return the path
+        log('Using non-SVG powered-by logo');
+        return config.POWERED_BY_LOGO;
+      }
+    } catch (err) {
+      log('Failed to load powered-by logo with original path:', err.message);
+    }
+    
+    // If original path failed, try other extensions
+    for (const ext of extensions) {
+      const fullPath = basePath + ext;
+      try {
+        log('Trying powered-by logo with extension:', fullPath);
+        if (ext === '.svg') {
+          const svgData = await fetchSVG(fullPath, '#ffffff');
+          if (svgData) {
+            log('Successfully loaded powered-by SVG with white color');
+            return svgData;
+          }
+        } else {
+          // For non-SVG files, check if they exist
+          const response = await fetch(fullPath, { method: 'HEAD' });
+          if (response.ok) {
+            log('Found powered-by logo with extension:', ext);
+            return fullPath;
+          }
+        }
+      } catch (err) {
+        log('Failed to load powered-by logo with extension:', ext, err.message);
+      }
+    }
+    
+    log('Could not load powered-by logo with any extension');
+    return null;
+  };
 
   // Set up message handling
   window.addEventListener("message", handleIframeMessage);
@@ -123,6 +191,12 @@ import { showConnectingUI } from './modules/widget-connect.js';
   async function init() {
     // Load the logo with our optimized strategy
     const logoURL = await loadLogo();
+    
+    // Load powered-by logo if specified
+    const poweredByLogo = await loadPoweredByLogo();
+    if (poweredByLogo) {
+      config.POWERED_BY_LOGO = poweredByLogo;
+    }
     
     // Multiple staggered attempts to catch late-loading DOM on PDP
     [0, 400, 1200, 2500].forEach(delay => 

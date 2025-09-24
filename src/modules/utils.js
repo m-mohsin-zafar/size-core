@@ -73,15 +73,39 @@ export function svgToDataURI(svgText) {
 /**
  * Fetch and process an SVG file from a URL
  * Returns a Promise that resolves to a data URI
+ * @param {string} url - URL to fetch SVG from
+ * @param {string} fillColor - Optional color to apply to all paths and shapes in the SVG
+ * @returns {Promise<string|null>} - Data URI of the SVG or null if failed
  */
-export async function fetchSVG(url) {
+export async function fetchSVG(url, fillColor) {
   try {
     const response = await fetch(url);
     if (!response.ok) throw new Error(`Failed to fetch SVG: ${response.statusText}`);
-    const svgText = await response.text();
+    let svgText = await response.text();
+    
     if (!svgText.trim().toLowerCase().includes('<svg')) {
       throw new Error('Invalid SVG content');
     }
+    
+    // Apply fill color if specified
+    if (fillColor) {
+      // Create a temporary DOM element to manipulate the SVG
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = svgText;
+      const svgElement = tempDiv.querySelector('svg');
+      
+      if (svgElement) {
+        // Find all paths, circles, rectangles and text elements and apply the fill color
+        const elements = svgElement.querySelectorAll('path, circle, rect, text');
+        elements.forEach(el => {
+          el.setAttribute('fill', fillColor);
+        });
+        
+        // Get the modified SVG content
+        svgText = tempDiv.innerHTML;
+      }
+    }
+    
     return svgToDataURI(svgText);
   } catch (err) {
     log('SVG fetch error:', err);

@@ -146,6 +146,40 @@ You can customize the button's appearance by providing:
 </script>
 ```
 
+### Responsive Widget Design
+
+The Size Core widget now features a fully responsive design that adapts to different device types:
+
+#### Desktop Experience
+- Displays as a centered modal dialog with a maximum width and height
+- Semi-transparent overlay that darkens the background content
+- Clicking the overlay closes the widget
+- Smooth scale animation when opening and closing
+- Maintains proper spacing and padding for optimal desktop viewing
+- Enhanced readability with appropriate font sizing
+
+#### Mobile/Tablet Experience
+- Full-screen takeover for a more immersive experience
+- Optimized for touch interactions
+- Slide-up animation that feels natural on mobile devices
+- Efficient use of limited screen real estate
+- Adapted layout that works well on smaller screens
+- Proper handling of device orientation changes
+
+#### Responsive Implementation Details
+- Uses CSS media queries to detect device type
+- Applies different styles and behaviors based on screen width
+- Responsive font sizes using clamp() for better readability across devices
+- Different transform animations for desktop vs mobile
+- Ensures a consistent user experience regardless of device
+
+#### Technical Implementation
+- Device detection using `window.matchMedia('(max-width: 1024px)')`
+- Conditional styling based on device type
+- Different transform and animation properties for each device type
+- Overlay element that's only visible and interactive on desktop
+- Responsive iframe container for measurement flow
+
 ### Full Implementation Example
 
 ```html

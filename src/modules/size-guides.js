@@ -146,17 +146,9 @@ export async function renderDebugOverlay() {
  * Track click or action
  */
 export function trackClick(action) {
-  const payload = {
-    action,
-    session_id: (function(){ try {return localStorage.getItem("size-core-session"); } catch {return null;} })(),
-    product_id: resolveProductId() || null,
-    product_url: window.location.href,
-    store_id: config.STORE_ID || null,
-    timestamp: Date.now()
-  };
-  fetch(config.TRACK_CLICK_ENDPOINT, { 
-    method: "POST", 
-    headers: {"Content-Type": "application/json"}, 
-    body: JSON.stringify(payload) 
-  }).catch(()=>{});
+  // Tracking disabled during testing to avoid external calls
+  if (!window.__sizeCoreTrackWarned) {
+    console.warn('trackClick is disabled in this build.');
+    try { window.__sizeCoreTrackWarned = true; } catch (e) {}
+  }
 }

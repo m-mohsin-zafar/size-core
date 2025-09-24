@@ -237,10 +237,10 @@ function makeButtonDraggable(container) {
       // Use different border based on button state (circular or rectangular)
       if (btn.classList.contains('circular')) {
         btn.style.border = "1px solid rgba(0,0,0,0.18)";
-        btn.style.background = "#fafafa";
+        btn.style.background = "#f2f2f8";
       } else {
         btn.style.border = "1px solid rgba(0,0,0,0.15)";
-        btn.style.background = "#f8f8f8";
+        btn.style.background = "#f2f2f8";
       }
     }
   });
@@ -252,10 +252,10 @@ function makeButtonDraggable(container) {
       // Restore default styles based on button state
       if (btn.classList.contains('circular')) {
         btn.style.border = "1px solid rgba(0,0,0,0.12)";
-        btn.style.background = "#ffffff";
+        btn.style.background = "#f2f2f8";
       } else {
         btn.style.border = "1px solid rgba(0,0,0,0.08)";
-        btn.style.background = "#ffffff";
+        btn.style.background = "#f2f2f8";
       }
     }
   });
@@ -387,6 +387,7 @@ function animateToCircularButton(btn, textSpan, logoContainer, buttonContainer) 
       width: "56px", // Will be updated by responsive styles if needed
       minWidth: "56px",
       padding: "12px",
+      gap: "0", // Remove gap when circular
       justifyContent: "center",
       boxShadow: "none", // Remove shadow
       border: "1px solid rgba(0,0,0,0.12)" // Add more visible border
@@ -438,7 +439,6 @@ export function createButton(logoUrl) {
   textSpan.id = "size-core-btn-text";
   textSpan.textContent = "Get Size Recommendation";
   Object.assign(textSpan.style, {
-    marginRight: "10px",
     transition: "opacity 0.5s ease-out, transform 0.5s ease-out", // Increased animation time
     opacity: "1",
     transform: "translateX(0)",
@@ -458,6 +458,7 @@ export function createButton(logoUrl) {
     justifyContent: "center",
     overflow: "hidden",
     margin: "0",
+    flexShrink: "0", // Prevent the logo from shrinking
     transition: "transform 0.3s ease-out",
     transform: "scale(1)"
   });
@@ -489,14 +490,14 @@ export function createButton(logoUrl) {
     logoContainer.appendChild(img);
   }
   
-  // Add text and logo to button
-  btn.appendChild(textSpan);
+  // Add logo and text to button in that order (logo first, then text)
   btn.appendChild(logoContainer);
+  btn.appendChild(textSpan);
   
   // Style the button for initial state - rectangular with text and logo
   Object.assign(btn.style, {
     position: "relative", // Changed from fixed to relative
-    background: "#ffffff",
+    background: "#f2f2f8",
     color: "#111",
     border: "1px solid rgba(0,0,0,0.08)",
     cursor: "pointer",
@@ -505,7 +506,8 @@ export function createButton(logoUrl) {
     boxSizing: 'border-box',
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center', // Center content horizontally
+    gap: '14px', // Add space between logo and text using gap
     padding: '12px 20px',
     borderRadius: '10px', // Start with rounded rectangle
     touchAction: 'none', // Prevents default touch actions to enable better dragging

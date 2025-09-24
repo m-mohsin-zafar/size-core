@@ -21,14 +21,37 @@ import { trackClick } from './size-guides.js';
 import { clearMeasurementData } from './iframe-communication.js';
 
 export function showSallaRecommendation(data, isStoredResult = false) {
+  console.log('showSallaRecommendation called with:', data, 'isStoredResult:', isStoredResult);
+
+  // Dedupe: if we recently rendered the same request_id, skip to avoid re-entrant renders
+  try {
+    window.__sizeCoreLastRender = window.__sizeCoreLastRender || { requestId: null, ts: 0 };
+    const incomingId = data && data.request_id ? String(data.request_id) : null;
+    const now = Date.now();
+    // If same request id within 5s, skip
+    if (incomingId && window.__sizeCoreLastRender.requestId === incomingId && (now - window.__sizeCoreLastRender.ts) < 5000) {
+      console.log('Skipping duplicate showSallaRecommendation for request_id:', incomingId);
+      return;
+    }
+    // Update last render info now (prevent races)
+    window.__sizeCoreLastRender.requestId = incomingId;
+    window.__sizeCoreLastRender.ts = now;
+  } catch (e) { /* ignore */ }
+
   const shell = document.getElementById(config.WIDGET_ID);
+  // Only call ensure/open if the shell is missing or not visible. Avoid re-entrant open when already visible.
   if (!shell) {
-    // Create the widget shell if it doesn't exist
     ensureWidgetShell();
     openWidget();
   } else {
-    // If widget already exists, make sure it's visible
-    openWidget();
+    // If widget exists, check if it's hidden or empty before opening
+    const isVisible = !!(shell.offsetParent || (getComputedStyle(shell).display !== 'none' && shell.style.display !== 'none'));
+    const hasContent = shell.innerHTML && shell.innerHTML.trim().length > 20;
+    if (!isVisible || !hasContent) {
+      openWidget();
+    } else {
+      console.log('Widget already visible with content — skipping openWidget() to avoid re-entrant render');
+    }
   }
   
   // Remove iframe if exists
@@ -151,10 +174,10 @@ export function showSallaRecommendation(data, isStoredResult = false) {
   resultWrap.innerHTML = `
     <div style="position: relative; width: 100%; padding: 20px; box-sizing: border-box;">
       ${data.results && data.results.recommendedSize !== null ? `
-        <div style="margin-bottom: 30px;">
-          <div style="font-size:15px;color:#666;margin-bottom:8px;font-weight:500;">Recommended Size</div>
-          <div style="font-size:clamp(32px, 8vw, 48px);font-weight:700;letter-spacing:1px;color:#222;margin-bottom:16px;background:#f8f8f8;border-radius:12px;padding:15px;display:inline-block;min-width:80px;">${escapeHTML(String(data.results.recommendedSize))}</div>
-          <div style="font-size:13px;color:#555;margin-top:10px;">Based on your body measurements</div>
+        <div style="margin-bottom: 30px; text-align: center;">
+          <div style="font-size:15px;color:#666;margin-bottom:12px;font-weight:500;">Recommended Size</div>
+          <div style="width:100px;height:100px;margin:0 auto;display:flex;justify-content:center;align-items:center;font-size:clamp(28px, 8vw, 42px);font-weight:700;letter-spacing:1px;color:#fff;background:linear-gradient(135deg, #ff8a00, #e52e71);border-radius:50%;box-shadow:0 4px 15px rgba(229, 46, 113, 0.3);">${escapeHTML(String(data.results.recommendedSize))}</div>
+          <div style="font-size:13px;color:#555;margin-top:15px;">Based on your body measurements</div>
         </div>
       ` : ''}
       ${measurementsHtml}
@@ -162,9 +185,9 @@ export function showSallaRecommendation(data, isStoredResult = false) {
       ${requestIdHtml}
       <div style="display: flex; flex-wrap: wrap; gap: 15px; justify-content: center; margin-top: 30px; margin-bottom: 16px;">
         ${isStoredResult ? `
-          <button id="size-core-retake" style="background:#ff6f61;color:#fff;border:0;border-radius:10px;padding:clamp(10px, 3vw, 14px) clamp(15px, 4vw, 22px);font-size:clamp(14px, 3vw, 15px);font-weight:600;cursor:pointer;box-shadow:0 4px 10px rgba(255,111,97,0.2);transition:all 0.2s ease;flex:1;max-width:250px;">Retake Measurements</button>
+          <button id="size-core-retake" style="background:linear-gradient(135deg, #ff8a00, #e52e71);color:#fff;border:0;border-radius:10px;padding:clamp(10px, 3vw, 14px) clamp(15px, 4vw, 22px);font-size:clamp(14px, 3vw, 15px);font-weight:600;cursor:pointer;box-shadow:0 4px 10px rgba(229, 46, 113, 0.3);transition:all 0.2s ease;flex:1;max-width:250px;position:relative;overflow:hidden;">Retake Measurements</button>
         ` : ''}
-        <button id="size-core-close-after" style="background:#333;color:#fff;border:0;border-radius:10px;padding:clamp(10px, 3vw, 14px) clamp(15px, 4vw, 22px);font-size:clamp(14px, 3vw, 15px);font-weight:600;cursor:pointer;box-shadow:0 4px 10px rgba(0,0,0,0.1);transition:all 0.2s ease;flex:1;max-width:250px;">Close</button>
+        <button id="size-core-close-after" style="background:linear-gradient(135deg, #ff8a00, #e52e71);color:#fff;border:0;border-radius:10px;padding:clamp(10px, 3vw, 14px) clamp(15px, 4vw, 22px);font-size:clamp(14px, 3vw, 15px);font-weight:600;cursor:pointer;box-shadow:0 4px 10px rgba(229, 46, 113, 0.3);transition:all 0.2s ease;flex:1;max-width:250px;position:relative;overflow:hidden;">Close</button>
       </div>
     </div>
   `;
@@ -172,6 +195,10 @@ export function showSallaRecommendation(data, isStoredResult = false) {
   const container = shell.querySelector(`#${config.WIDGET_GREETING_ID}`) || shell;
   container.innerHTML = "";
   container.appendChild(resultWrap);
+
+  try {
+    console.log('showSallaRecommendation rendered. container innerHTML length:', container.innerHTML ? container.innerHTML.length : 0);
+  } catch (e) { console.warn('Could not read container innerHTML', e); }
   
   // Add event listeners to buttons
   const btnClose = container.querySelector("#size-core-close-after");
@@ -188,8 +215,26 @@ export function showSallaRecommendation(data, isStoredResult = false) {
     btnRetake.addEventListener("click", () => {
       // Clear existing measurement data first
       clearMeasurementData();
-      
-      // Then load the flow iframe to start a new measurement
+
+      // If this was a desktop-stored result, show the initial empty state instead of loading the iframe
+      const isDesktop = !window.matchMedia('(max-width: 1024px)').matches;
+      if (isStoredResult && isDesktop) {
+        try {
+          // Clear persisted store and runtime flag
+          localStorage.removeItem('size-core-data');
+          try { window.__sizeCoreHasResults = false; } catch (e) {}
+        } catch (e) { /* ignore */ }
+
+        // Show empty state (initial screen)
+        try { showEmptyState(shell); } catch (e) { 
+          // Fallback to reloading iframe if empty state not available
+          loadFlowIframe(shell);
+        }
+
+        return;
+      }
+
+      // Otherwise load the flow iframe to start a new measurement
       loadFlowIframe(shell);
     });
   }
