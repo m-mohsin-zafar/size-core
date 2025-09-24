@@ -1,5 +1,5 @@
 import { config, FLOW_ORIGIN } from './config.js';
-import { escapeHTML, log, genUUID } from './utils.js';
+import { escapeHTML, log, genUUID, getLocalStorageSafe, safeMatchMedia, tw } from './utils.js';
 import { resolveProductId } from './product-detection.js';
 import { trackClick } from './size-guides.js';
 import { setupIframeMessageListener, sendMessageToIframe, getIframeData } from './iframe-communication.js';
@@ -17,74 +17,44 @@ export function showEmptyState(shell) {
   
   // Create the empty state container
   const emptyStateWrap = document.createElement("div");
-  Object.assign(emptyStateWrap.style, {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    textAlign: "center",
-    padding: "40px 20px",
-    margin: "auto",
-    width: "100%",
-    maxWidth: "500px",
-    boxSizing: "border-box"
-  });
+  emptyStateWrap.className = tw(
+    'tw-flex tw-h-full tw-w-full tw-max-w-full tw-flex-col tw-items-center tw-justify-center tw-gap-5 tw-text-center',
+    'tw-box-border tw-overflow-hidden tw-bg-white tw-px-3 tw-py-8 tw-rounded-none tw-shadow-none',
+    'sm:tw-px-4 sm:tw-py-4',
+    'md:tw-mx-auto md:tw-max-w-[520px] md:tw-rounded-2xl md:tw-shadow-[0_12px_30px_rgba(15,23,42,0.12)] md:tw-px-8 md:tw-py-10'
+  );
   
-  // Create illustration placeholder (can be replaced with an actual SVG or image)
+  // Illustration placeholder (can be replaced with an actual SVG or image)
   const illustration = document.createElement("div");
-  Object.assign(illustration.style, {
-    width: "120px",
-    height: "120px",
-    borderRadius: "50%",
-    background: "#E6E6F0",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: "24px",
-    color: "#6F6F8A",
-    fontSize: "36px",
-    fontWeight: "200"
-  });
-  illustration.innerHTML = "📏"; // Simple emoji as placeholder
+  illustration.className = tw(
+    'tw-flex tw-h-20 tw-w-20 tw-items-center tw-justify-center tw-rounded-full',
+    'tw-bg-brand-surface tw-text-3xl tw-font-light tw-text-brand-text/60',
+    'md:tw-h-24 md:tw-w-24 md:tw-text-4xl'
+  );
+  illustration.textContent = "📏"; // Simple emoji as placeholder
   emptyStateWrap.appendChild(illustration);
   
   // Title
   const title = document.createElement("h2");
+  title.className = tw('tw-text-2xl tw-font-semibold tw-text-brand-text');
   title.textContent = "No Measurements Yet";
-  Object.assign(title.style, {
-    fontSize: "22px",
-    fontWeight: "600",
-    color: "#333",
-    margin: "0 0 12px"
-  });
   emptyStateWrap.appendChild(title);
   
   // Description
   const description = document.createElement("p");
+  description.className = tw('tw-max-w-[420px] tw-text-sm tw-leading-relaxed tw-text-slate-600 md:tw-text-base');
   description.textContent = "Take a few photos to get your personalized tailor fit measurements";
-  Object.assign(description.style, {
-    fontSize: "15px",
-    lineHeight: "1.5",
-    color: "#666",
-    margin: "0 0 30px",
-    maxWidth: "400px"
-  });
   emptyStateWrap.appendChild(description);
   
   // Start button
   const startBtn = document.createElement("button");
+  startBtn.type = 'button';
+  startBtn.className = tw(
+    'tw-inline-flex tw-items-center tw-justify-center tw-rounded-xl tw-bg-brand-primary tw-px-7 tw-py-3.5',
+    'tw-text-base tw-font-semibold tw-text-white tw-shadow-[0_8px_24px_rgba(144,51,22,0.35)]',
+    'tw-transition tw-duration-150 hover:tw-bg-brand-primary/90 focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-brand-primary/40'
+  );
   startBtn.textContent = "Let's Get Started";
-  Object.assign(startBtn.style, {
-    background: "#903316",
-    color: "#fff",
-    border: "none",
-    borderRadius: "10px",
-    padding: "14px 28px",
-    fontSize: "16px",
-    fontWeight: "600",
-    cursor: "pointer",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.15)"
-  });
   startBtn.addEventListener("click", () => {
     // Prevent multiple clicks if already connecting
     if (window.__sizeCoreConnecting) {
@@ -93,7 +63,8 @@ export function showEmptyState(shell) {
     }
     
     // Check if desktop view
-    const isDesktop = !window.matchMedia('(max-width: 1024px)').matches;
+    const mq = safeMatchMedia('(max-width: 1024px)');
+    const isDesktop = !(mq && mq.matches);
     
     if (isDesktop) {
       // For desktop, use Socket.IO connection exclusively
@@ -128,13 +99,21 @@ export function ensureWidgetShell() {
   if (shell) return shell;
   
   // Create a function to check if we're on a mobile/tablet device
-  const isMobileOrTablet = () => window.matchMedia('(max-width: 1024px)').matches;
+  const isMobileOrTablet = () => {
+    const mq = safeMatchMedia('(max-width: 1024px)');
+    return !!(mq && mq.matches);
+  };
   const isMobile = isMobileOrTablet();
   
   shell = document.createElement("div");
   shell.id = config.WIDGET_ID;
   shell.setAttribute("role", "dialog");
   shell.setAttribute("aria-modal", "true");
+  shell.className = tw(
+    'tw-fixed tw-z-[100002] tw-flex tw-flex-col tw-bg-white tw-transition-all tw-duration-200 tw-ease-out',
+    'tw-opacity-0 tw-pointer-events-none tw-transform'
+  );
+  if (config.FONT_FAMILY) shell.style.fontFamily = config.FONT_FAMILY;
 
   // Inject Red Hat fonts link tags if not already present
   try {
@@ -152,58 +131,36 @@ export function ensureWidgetShell() {
   
   // Apply different styles based on device type
   if (isMobile) {
-    // Full-screen style for mobile and tablets
-    Object.assign(shell.style, {
-      position: "fixed",
-      inset: "0",
-      width: "100vw",
-      height: "100vh",
-      background: "#fff",
-      zIndex: 100002,
-      display: "flex",
-      flexDirection: "column",
-      opacity: 0,
-      pointerEvents: "none",
-      transform: "translateY(8px)",
-      transition: "opacity .25s ease, transform .25s ease",
-      fontFamily: config.FONT_FAMILY
-    });
+    const mobileClasses = tw(
+      'tw-inset-0',
+      'tw-h-screen',
+      'tw-w-screen',
+      'tw-translate-y-2'
+    );
+    shell.classList.add(...mobileClasses.split(' '));
   } else {
-    // Modal-style for desktop
-    Object.assign(shell.style, {
-      position: "fixed",
-      top: "50%",
-      left: "50%",
-      width: "90%",
-      maxWidth: "800px",
-      height: "90%",
-      maxHeight: "700px",
-      background: "#fff",
-      zIndex: 100002,
-      display: "flex",
-      flexDirection: "column",
-      opacity: 0,
-      pointerEvents: "none",
-      transform: "translate(-50%, -50%) scale(0.95)",
-      transition: "opacity .25s ease, transform .25s ease",
-      fontFamily: config.FONT_FAMILY,
-      borderRadius: "12px",
-      boxShadow: "0 10px 40px rgba(0,0,0,0.2)",
-      overflow: "hidden"
-    });
-    
-    // Create overlay for desktop
+    const desktopClasses = tw(
+      'tw-left-1/2',
+      'tw-top-1/2',
+      'tw-h-[90%]',
+      'tw-w-[90%]',
+      'tw-max-h-[700px]',
+      'tw-max-w-[800px]',
+      'tw--translate-x-1/2',
+      'tw--translate-y-1/2',
+      'tw-scale-[0.95]',
+      'tw-rounded-[12px]',
+      'tw-shadow-[0_10px_40px_rgba(0,0,0,0.2)]',
+      'tw-overflow-hidden'
+    );
+    shell.classList.add(...desktopClasses.split(' '));
+
     const overlay = document.createElement("div");
     overlay.id = "size-core-overlay";
-    Object.assign(overlay.style, {
-      position: "fixed",
-      inset: "0",
-      background: "rgba(0,0,0,0.5)",
-      zIndex: 100001,
-      opacity: 0,
-      transition: "opacity .25s ease",
-      pointerEvents: "none"
-    });
+    overlay.className = tw(
+      'tw-fixed tw-inset-0 tw-z-[100001] tw-bg-[rgba(0,0,0,0.5)]',
+      'tw-opacity-0 tw-pointer-events-none tw-transition-opacity tw-duration-200 tw-ease-out'
+    );
     overlay.addEventListener("click", closeWidget);
     document.body.appendChild(overlay);
   }
@@ -211,79 +168,42 @@ export function ensureWidgetShell() {
   // Header (responsive & aesthetic)
   const header = document.createElement('div');
   header.setAttribute('role', 'banner');
-  Object.assign(header.style, {
-    padding: 'clamp(10px, 2.2vw, 16px) clamp(12px, 3vw, 20px)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    gap: '12px',
-    borderBottom: '1px solid rgba(33,33,35,0.08)',
-    background: '#212123',
-    color: '#ffffff',
-    boxSizing: 'border-box'
-  });
+  header.className = tw(
+    'tw-flex tw-items-center tw-justify-between tw-gap-3 tw-text-white',
+    'tw-bg-[#212123] tw-px-[clamp(12px,3vw,20px)] tw-py-[clamp(10px,2.2vw,16px)]',
+    'tw-border-b tw-border-white/10 tw-box-border'
+  );
 
   // Left: Title (single element)
   const titleSection = document.createElement('div');
-  Object.assign(titleSection.style, {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    flex: '1 1 auto',
-    minWidth: 0 // allow truncation
-  });
+  titleSection.className = tw('tw-flex tw-flex-1 tw-items-center tw-gap-2 tw-min-w-0');
 
   const title = document.createElement('div');
   title.textContent = 'Size Recommendations';
-  Object.assign(title.style, {
-    fontSize: 'clamp(15px, 2.2vw, 18px)',
-    fontWeight: 700,
-    color: '#ffffff',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis'
-  });
+  title.className = tw('tw-text-[clamp(15px,2.2vw,18px)] tw-font-semibold tw-whitespace-nowrap tw-overflow-hidden tw-text-ellipsis');
   titleSection.appendChild(title);
 
   // Right: actions (close + powered-by)
   const actionsSection = document.createElement('div');
-  Object.assign(actionsSection.style, {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    flex: '0 0 auto'
-  });
+  actionsSection.className = tw('tw-flex tw-items-center tw-gap-3');
 
   // Close button (accessible)
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.setAttribute('aria-label', 'Close size recommendation');
   closeBtn.innerHTML = '\u00d7'; // ×
-  Object.assign(closeBtn.style, {
-    display: 'inline-flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '36px',
-    height: '36px',
-    borderRadius: '8px',
-    background: 'transparent',
-    border: '1px solid rgba(255,255,255,0.06)',
-    color: '#ffffff',
-    cursor: 'pointer',
-    fontSize: '20px',
-    lineHeight: 1,
-    padding: 0,
-    transition: 'background .15s ease, transform .08s ease'
-  });
+  closeBtn.className = tw(
+    'tw-inline-flex tw-h-9 tw-w-9 tw-items-center tw-justify-center tw-rounded-lg tw-leading-none',
+    'tw-border tw-border-white/15 tw-bg-white/10 tw-text-xl tw-text-white tw-transition',
+    'hover:tw-bg-white/20 focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-white/40'
+  );
   closeBtn.addEventListener('click', closeWidget);
-  closeBtn.addEventListener('mouseenter', () => closeBtn.style.background = 'rgba(255,255,255,0.04)');
-  closeBtn.addEventListener('mouseleave', () => closeBtn.style.background = 'transparent');
 
   // Powered-by logo (render inside actions at the end) — order will be: title, spacer, powered-by, close
   let pbContainer = null;
   if (config.POWERED_BY_LOGO) {
     pbContainer = document.createElement('div');
-    Object.assign(pbContainer.style, { display: 'flex', alignItems: 'center', height: '20px' });
+    pbContainer.className = tw('tw-flex tw-items-center tw-h-5');
 
     if (config.POWERED_BY_LOGO.includes('<svg') || config.POWERED_BY_LOGO.startsWith('data:image/svg+xml')) {
       import('./utils.js').then(({ createInlineSVG }) => {
@@ -310,10 +230,7 @@ export function ensureWidgetShell() {
 
   // Build header: title on the left, actions (powered-by + close) on the right
   header.appendChild(titleSection);
-  // spacer to push actions to the end
-  const spacer = document.createElement('div');
-  Object.assign(spacer.style, { flex: '1 1 auto' });
-  header.appendChild(spacer);
+
   if (pbContainer) actionsSection.appendChild(pbContainer);
   actionsSection.appendChild(closeBtn);
   header.appendChild(actionsSection);
@@ -322,34 +239,29 @@ export function ensureWidgetShell() {
   // Content wrapper
   const content = document.createElement("div");
   content.id = config.WIDGET_GREETING_ID;
-  Object.assign(content.style, {
-    flex: 1,
-    overflow: "auto",
-    display: "flex",
-    flexDirection: "column",
-    padding: "28px 20px",
-    gap: "24px",
-    background: "#F2F2F8"
-  });
+  content.className = tw(
+    'tw-flex tw-flex-1 tw-flex-col tw-gap-5 tw-overflow-auto tw-overflow-x-hidden tw-w-full tw-box-border',
+    'tw-bg-brand-surface tw-px-4 tw-py-6 sm:tw-px-5 sm:tw-py-6 md:tw-px-6 md:tw-py-7'
+  );
 
   // Greeting UI
   const greet = document.createElement("div");
-  greet.innerHTML = `<h2 style="margin:0 0 8px;font-size:22px;">Find Your Perfect Size</h2>
-    <p style="margin:0 0 24px;font-size:14px;line-height:1.5;max-width:480px;color:#444;">We'll guide you through a quick photo-based flow to recommend the best size for this product.</p>`;
+  greet.className = tw('tw-flex tw-flex-col tw-gap-3');
+  const greetHeading = document.createElement('h2');
+  greetHeading.className = tw('tw-text-2xl tw-font-semibold tw-text-brand-text');
+  greetHeading.textContent = 'Find Your Perfect Size';
+  greet.appendChild(greetHeading);
+  const greetCopy = document.createElement('p');
+  greetCopy.className = tw('tw-max-w-xl tw-text-sm tw-leading-relaxed tw-text-slate-600');
+  greetCopy.textContent = "We'll guide you through a quick photo-based flow to recommend the best size for this product.";
+  greet.appendChild(greetCopy);
   const startBtn = document.createElement("button");
   startBtn.textContent = "Let's Get Started";
-  Object.assign(startBtn.style, {
-    background: "#903316",
-    color: "#fff",
-    border: "none",
-    borderRadius: "10px",
-    padding: "14px 20px",
-    fontSize: "16px",
-    fontWeight: 600,
-    cursor: "pointer",
-    boxShadow: "0 6px 18px rgba(0,0,0,0.15)",
-    alignSelf: "flex-start"
-  });
+  startBtn.className = tw(
+    'tw-inline-flex tw-w-fit tw-items-center tw-justify-center tw-rounded-xl tw-bg-brand-primary tw-px-7 tw-py-3.5',
+    'tw-text-base tw-font-semibold tw-text-white tw-shadow-[0_8px_24px_rgba(144,51,22,0.35)]',
+    'tw-transition tw-duration-150 hover:tw-bg-brand-primary/90 focus:tw-outline-none focus:tw-ring-2 focus:tw-ring-brand-primary/40'
+  );
   startBtn.addEventListener("click", () => {
     // Prevent multiple clicks if already connecting
     if (window.__sizeCoreConnecting) {
@@ -358,7 +270,8 @@ export function ensureWidgetShell() {
     }
     
     // Check if desktop view
-    const isDesktop = !window.matchMedia('(max-width: 1024px)').matches;
+    const mq = safeMatchMedia('(max-width: 1024px)');
+    const isDesktop = !(mq && mq.matches);
     
     if (isDesktop) {
       // For desktop, use Socket.IO connection exclusively
@@ -403,7 +316,8 @@ export function openWidget() {
   const hasSallaResults = (iframeData && iframeData.sallaResults) || (window.__sizeCoreHasResults === true);
   
   // Check if we're on a desktop device
-  const isDesktop = !window.matchMedia('(max-width: 1024px)').matches;
+  const mqOpen = safeMatchMedia('(max-width: 1024px)');
+  const isDesktop = !(mqOpen && mqOpen.matches);
   
   // Show overlay for desktop
   if (isDesktop) {
@@ -438,16 +352,19 @@ export function openWidget() {
 
           // Otherwise attempt to load persisted desktop results from localStorage
           if (window.__sizeCoreHasResults) {
-            try {
-              const stored = localStorage.getItem('size-core-data');
-              if (stored) {
-                const parsed = JSON.parse(stored);
-                if (parsed && parsed.sallaResults) {
-                  module.showSallaRecommendation(parsed.sallaResults, true);
-                  return;
+            const storage = getLocalStorageSafe();
+            if (storage) {
+              try {
+                const stored = storage.getItem('size-core-data');
+                if (stored) {
+                  const parsed = JSON.parse(stored);
+                  if (parsed && parsed.sallaResults) {
+                    module.showSallaRecommendation(parsed.sallaResults, true);
+                    return;
+                  }
                 }
-              }
-            } catch (e) { console.warn('Failed to parse persisted size-core-data', e); }
+              } catch (e) { console.warn('Failed to parse persisted size-core-data', e); }
+            }
           }
 
           // Fallback - if nothing found, show empty state
@@ -526,7 +443,8 @@ export function closeWidget() {
   window.__sizeCoreWidgetManuallyClosed = true;
   
   // Check if we're on a desktop device
-  const isDesktop = !window.matchMedia('(max-width: 1024px)').matches;
+  const mqClosing = safeMatchMedia('(max-width: 1024px)');
+  const isDesktop = !(mqClosing && mqClosing.matches);
   
   // Hide overlay for desktop
   if (isDesktop) {
@@ -614,7 +532,7 @@ function establishSocketConnection(shell) {
     
     // For debugging - log details about the Socket.IO URL
     console.log('Socket.IO URL config:', {
-      url: config.WS_URL,
+      url: config.MIQYAS_BACKEND_WS_URL,
       path: config.SOCKET_PATH
     });
     
@@ -667,10 +585,10 @@ function establishSocketConnection(shell) {
         console.log('Resolved Socket.IO client to:', typeof ioClient === 'function' ? 'function' : typeof ioClient);
 
         try {
-          console.log('Attempting Socket.IO connection to:', config.WS_URL, 'path:', config.SOCKET_PATH);
+          console.log('Attempting Socket.IO connection to:', config.MIQYAS_BACKEND_WS_URL, 'path:', config.SOCKET_PATH);
 
           // Initialize Socket.IO connection
-          const socket = ioClient(config.WS_URL, {
+          const socket = ioClient(config.MIQYAS_BACKEND_WS_URL, {
             path: config.SOCKET_PATH,
             transports: ['websocket'],
             reconnectionAttempts: 3,
@@ -1046,8 +964,15 @@ export function loadFlowIframe(shell) {
         
         const pid = resolveProductId();
         const sessionId = genUUID();
-        try { localStorage.setItem("size-core-session", sessionId); } catch {}
-        const flowURL = new URL(config.EXTERNAL_FLOW_BASE);
+        const storage = getLocalStorageSafe();
+        if (storage) {
+          try {
+            storage.setItem("size-core-session", sessionId);
+          } catch (err) {
+            log('Failed to persist session id', err);
+          }
+        }
+        const flowURL = new URL(config.MIQYAS_FRONTEND_URL);
         flowURL.searchParams.set("session_id", sessionId);
         if (pid) flowURL.searchParams.set("product_id", pid);
         flowURL.searchParams.set("embed", "1");
@@ -1076,7 +1001,8 @@ export function loadFlowIframe(shell) {
         frame.allow = "camera; microphone";
         
         // Check if we're on a desktop device
-        const isDesktop = !window.matchMedia('(max-width: 1024px)').matches;
+        const mqIframe = safeMatchMedia('(max-width: 1024px)');
+        const isDesktop = !(mqIframe && mqIframe.matches);
         
         Object.assign(frame.style, {
           border: "none",

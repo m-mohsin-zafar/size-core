@@ -1,14 +1,31 @@
 import { openWidget } from './widget.js';
 import { DEBUG, config } from './config.js';
-import { log, createInlineSVG } from './utils.js';
+import { log, createInlineSVG, tw } from './utils.js';
 import { isProductPage } from './product-detection.js';
 import { renderDebugOverlay } from './size-guides.js';
 
-// Constants for button positioning
+function applyTwClasses(element, ...classGroups) {
+  const classes = tw(...classGroups).split(' ').filter(Boolean);
+  element.classList.add(...classes);
+}
+
+function removeTwClasses(element, ...classGroups) {
+  const classes = tw(...classGroups).split(' ').filter(Boolean);
+  if (classes.length) element.classList.remove(...classes);
+}
+
 const BUTTON_POSITION_STORAGE_KEY = 'size-core-button-position';
-const SCREEN_EDGE_PADDING = 10; // Minimum distance from screen edge
-// Instead of fixed pixel values, use percentages of the viewport
-const MAX_DISTANCE_PERCENTAGE = 0.7; // Button can't be more than 70% away from edges
+const SCREEN_EDGE_PADDING = 10;
+const MAX_DISTANCE_PERCENTAGE = 0.7;
+
+const BASE_BUTTON_CLASSES = 'tw-relative tw-flex tw-items-center tw-justify-center tw-rounded-[10px] tw-border tw-border-black/10 tw-bg-[#f2f2f8] tw-text-[#111] tw-text-sm tw-font-medium tw-touch-none tw-transition-[all] tw-duration-800 tw-ease-[cubic-bezier(0.25,0.1,0.25,1)]';
+const RECT_BUTTON_CLASSES = 'tw-gap-3.5 tw-px-5 tw-py-3 tw-min-w-[220px] tw-h-14';
+const CIRC_BUTTON_CLASSES = 'tw-gap-0 tw-p-3 tw-w-14 tw-h-14 tw-min-w-[56px] tw-justify-center tw-border tw-border-black/15 tw-rounded-full tw-shadow-none';
+const TEXT_BASE_CLASSES = 'tw-whitespace-nowrap tw-font-sans tw-font-semibold tw-leading-none tw-transition tw-duration-500 tw-ease-out [transition-property:opacity,transform] tw-m-[2px]';
+const TEXT_VISIBLE_CLASSES = 'tw-opacity-100 tw-translate-x-0';
+const TEXT_HIDE_CLASSES = 'tw-opacity-0 tw-translate-x-5';
+const LOGO_POP_CLASSES = 'tw-transform tw-scale-[1.10] tw-mx-auto';
+const HOVER_CLASSES = 'tw-transform tw-scale-[1.05] tw-border-black/15 tw-bg-[#f4f4fb]';
 
 /**
  * Store button position in local storage
@@ -272,12 +289,7 @@ function createLogoImage(src) {
   img.alt = 'Size Recommendation';
   img.src = src;
   img.className = 'size-core-logo-img';
-  Object.assign(img.style, {
-    width: '100%',
-    height: '100%',
-    objectFit: 'contain',
-    display: 'block'
-  });
+  applyTwClasses(img, 'tw-block tw-h-full tw-w-full tw-object-contain');
   img.decoding = 'async';
   img.loading = 'lazy';
   
@@ -333,7 +345,8 @@ export function applyButtonResponsiveStyles(btnContainer) {
     } else {
       // Default positions
       if (mobile) {
-        bottom = Math.max(60, SCREEN_EDGE_PADDING + (window.visualViewport ? window.visualViewport.height * 0.15 : 60));
+        // bottom = Math.max(60, SCREEN_EDGE_PADDING + (window.visualViewport ? window.visualViewport.height * 0.15 : 60));
+        bottom = 16;
         right = 16;
       } else {
         bottom = 20;
@@ -418,17 +431,10 @@ export function createButton(logoUrl) {
   // Create the outer container that will handle the animation
   const buttonContainer = document.createElement("div");
   buttonContainer.id = "size-core-floating-container";
-  Object.assign(buttonContainer.style, {
-    position: "fixed",
-    bottom: "16px",
-    right: "16px",
-    zIndex: 100000,
-    transition: "all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1.0)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden"
-  });
+  buttonContainer.className = tw(
+    'tw-fixed tw-bottom-4 tw-right-4 tw-z-[100000] tw-flex tw-items-center tw-justify-center tw-overflow-hidden',
+    'tw-transition-[all] tw-duration-500 tw-ease-[cubic-bezier(0.25,0.1,0.25,1)]'
+  );
   
   // Create the button element
   const btn = document.createElement("button");
@@ -438,30 +444,17 @@ export function createButton(logoUrl) {
   const textSpan = document.createElement("span");
   textSpan.id = "size-core-btn-text";
   textSpan.textContent = "Get Size Recommendation";
-  Object.assign(textSpan.style, {
-    transition: "opacity 0.5s ease-out, transform 0.5s ease-out", // Increased animation time
-    opacity: "1",
-    transform: "translateX(0)",
-    whiteSpace: "nowrap",
-    fontWeight: "600" // Make text bold
-  });
+  applyTwClasses(textSpan,
+    'tw-whitespace-nowrap tw-font-semibold tw-transition tw-duration-500 tw-ease-out [transition-property:opacity,transform]'
+  );
   
   // Create logo container with fixed dimensions for consistent layout
   const logoContainer = document.createElement('div');
   logoContainer.className = 'size-core-logo-container';
   logoContainer.id = 'size-core-logo-container';
-  Object.assign(logoContainer.style, {
-    width: "32px",
-    height: "32px",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    overflow: "hidden",
-    margin: "0",
-    flexShrink: "0", // Prevent the logo from shrinking
-    transition: "transform 0.3s ease-out",
-    transform: "scale(1)"
-  });
+  applyTwClasses(logoContainer,
+    'tw-flex tw-h-8 tw-w-8 tw-flex-shrink-0 tw-items-center tw-justify-center tw-overflow-hidden tw-transition-transform tw-duration-300 tw-ease-out'
+  );
   
   // Check if logoUrl is an SVG data URI
   if (logoUrl && typeof logoUrl === 'string' && logoUrl.startsWith('data:image/svg+xml')) {
@@ -470,11 +463,7 @@ export function createButton(logoUrl) {
       const svg = createInlineSVG(logoUrl, 'size-core-logo-svg');
       if (svg) {
         // Set SVG styles for proper display
-        Object.assign(svg.style, {
-          width: '100%',
-          height: '100%',
-          display: 'block'
-        });
+        svg.classList.add('tw-block', 'tw-h-full', 'tw-w-full');
         logoContainer.appendChild(svg);
       } else {
         throw new Error('Failed to create inline SVG');
@@ -495,26 +484,11 @@ export function createButton(logoUrl) {
   btn.appendChild(textSpan);
   
   // Style the button for initial state - rectangular with text and logo
-  Object.assign(btn.style, {
-    position: "relative", // Changed from fixed to relative
-    background: "#f2f2f8",
-    color: "#111",
-    border: "1px solid rgba(0,0,0,0.08)",
-    cursor: "pointer",
-    boxShadow: "none", // Remove shadow
-    transition: "all 0.8s cubic-bezier(0.25, 0.1, 0.25, 1.0)", // Increased animation time
-    boxSizing: 'border-box',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center', // Center content horizontally
-    gap: '14px', // Add space between logo and text using gap
-    padding: '12px 20px',
-    borderRadius: '10px', // Start with rounded rectangle
-    touchAction: 'none', // Prevents default touch actions to enable better dragging
-    width: 'auto',
-    minWidth: '220px', // Ensure enough space for text
-    height: '56px'
-  });
+  btn.className = tw(
+    'tw-relative tw-flex tw-items-center tw-justify-center tw-gap-3.5 tw-rounded-[10px]',
+    'tw-border tw-border-black/10 tw-bg-[#f2f2f8] tw-text-[#111] tw-text-sm tw-font-medium',
+    'tw-px-5 tw-py-3 tw-min-w-[220px] tw-h-14 tw-touch-none tw-transition-[all] tw-duration-800 tw-ease-[cubic-bezier(0.25,0.1,0.25,1)]'
+  );
   
   // Add button to container
   buttonContainer.appendChild(btn);

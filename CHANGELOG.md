@@ -2,13 +2,7 @@
 
 ## v0.3.0 (Current)
 
-### Features
-- Implemented fully responsive widget design that adapts to different device types
-- Added desktop-specific modal view with overlay background
-- Mobile/tablet displays now use full-screen layout for better experience
-- Improved widget animations with device-specific transitions
-- Enhanced UI spacing and layout for better usability across devices
-- Updated iframe handling to better fit different screen sizes
+### [Unreleased]
 - Improved connecting UI with responsive design
 - Added responsive measurements display using flexbox
 

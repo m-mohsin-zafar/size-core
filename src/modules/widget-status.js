@@ -4,6 +4,7 @@
 import { config } from './config.js';
 import { openWidget, ensureWidgetShell } from './widget.js';
 import { trackClick } from './size-guides.js';
+ 
 
 export function showSallaStatus(data) {
   const shell = document.getElementById(config.WIDGET_ID);
@@ -23,60 +24,31 @@ export function showSallaStatus(data) {
   }
   
   // Check if we're on a desktop device
-  const isDesktop = !window.matchMedia('(max-width: 1024px)').matches;
+  const mq = safeMatchMedia('(max-width: 1024px)');
+  const isDesktop = !(mq && mq.matches);
   
   // Create status display
   const statusWrap = document.createElement("div");
-  
-  // Apply different styles based on device type
-  if (isDesktop) {
-    Object.assign(statusWrap.style, {
-      position: "absolute",
-      top: "60px",
-      left: "0",
-      right: "0",
-      padding: "12px 20px",
-      background: "#4CAF50",
-      color: "white",
-      textAlign: "center",
-      fontSize: "14px",
-      zIndex: "100003",
-      opacity: "0",
-      transform: "translateY(-20px)",
-      transition: "opacity .3s ease, transform .3s ease",
-      borderBottom: "1px solid rgba(255, 255, 255, 0.2)",
-      borderRadius: "0 0 4px 4px"
-    });
-  } else {
-    Object.assign(statusWrap.style, {
-      position: "absolute",
-      top: "60px",
-      left: "0",
-      right: "0",
-      padding: "12px 20px",
-      background: "#4CAF50",
-      color: "white",
-      textAlign: "center",
-      fontSize: "14px",
-      zIndex: "100003",
-      opacity: "0",
-      transform: "translateY(-20px)",
-      transition: "opacity .3s ease, transform .3s ease",
-      borderBottom: "1px solid rgba(255, 255, 255, 0.2)"
-    });
-  }
+  statusWrap.id = 'size-core-salla-status';
+  statusWrap.className = tw(
+    'tw-fixed tw-left-0 tw-right-0 tw-z-[100003] tw-text-white tw-transition-all tw-duration-300 tw-ease-out',
+    'tw-flex tw-items-center tw-justify-center tw-gap-2',
+    'tw-bg-emerald-600 tw-px-5 tw-py-3 tw-text-sm md:tw-text-base',
+    isDesktop ? 'tw-top-[70px]' : 'tw-top-[60px]'
+  );
+  statusWrap.style.opacity = '0';
+  statusWrap.style.transform = 'translateY(-20px)';
   
   // Status content
   statusWrap.innerHTML = `
-    <div style="display: flex; align-items: center; justify-content: center;">
-      <div>
-        <strong>Let's Get Started</strong>
+    <div class="tw-flex tw-items-center tw-justify-center tw-gap-2">
+      <div class="tw-flex tw-items-center tw-gap-2">
+        <span class="tw-inline-flex tw-h-2 tw-w-2 tw-rounded-full tw-bg-white"></span>
+        <strong class="tw-font-semibold">Let's Get Started</strong>
+        ${data?.storeId ? `<span class="tw-text-xs tw-font-medium tw-text-white/80">Store ID: ${data.storeId}</span>` : ''}
       </div>
     </div>
   `;
-  
-  // Add ID for future reference
-  statusWrap.id = 'size-core-salla-status';
   
   // Add to widget
   shell.appendChild(statusWrap);
@@ -141,8 +113,8 @@ export function showSessionCreated(info = {}) {
   if (sessionId) {
     const target = document.getElementById('size-core-qr-target');
     if (!target) return;
-    // use the EXTERNAL_FLOW_BASE as the URL prefix
-    const url = `${config.EXTERNAL_FLOW_BASE}&sessionId=${sessionId}`;
+    // use the MIQYAS_FRONTEND_URL as the URL prefix
+    const url = `${config.MIQYAS_FRONTEND_URL}&sessionId=${sessionId}`;
     const payload = String(url);
 
     const fallbackToGoogle = () => {

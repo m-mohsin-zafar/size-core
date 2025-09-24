@@ -1,0 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  Tailwind utilities are prefixed with `tw-` (see `tailwind.config.js`).
+  Use these classes when composing widget markup to avoid leaking styles
+  into the host storefront.
+*/

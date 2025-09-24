@@ -1,5 +1,4 @@
 import { log } from './utils.js';
-import { config } from './config.js';
 
 /**
  * Check if JSON-LD structured data indicates a product page
@@ -46,8 +45,6 @@ export function hasDataAttr() {
  */
 export function isProductPage() {
   const href = window.location.href.toLowerCase();
-
-  if (href.includes(config.FALLBACK_URL_FRAGMENT)) return true;
 
   // Structured data
   if (hasStructuredProduct()) return true;

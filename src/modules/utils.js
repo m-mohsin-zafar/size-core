@@ -9,11 +9,44 @@ export function log(...args) {
   if (DEBUG) console.log("[SizeCore]", ...args); 
 }
 
+export function getWindowSafe() {
+  return typeof window !== 'undefined' ? window : null;
+}
+
+export function getDocumentSafe() {
+  const win = getWindowSafe();
+  if (win && win.document) return win.document;
+  return typeof document !== 'undefined' ? document : null;
+}
+
+export function getLocalStorageSafe() {
+  try {
+    const win = getWindowSafe();
+    if (win && win.localStorage) return win.localStorage;
+  } catch {}
+  return null;
+}
+
+export function safeMatchMedia(query) {
+  if (!query) return null;
+  const win = getWindowSafe();
+  if (!win || typeof win.matchMedia !== 'function') return null;
+  try {
+    return win.matchMedia(query);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Parse URL parameters
  */
 export function parseParams() { 
-  return new URLSearchParams(window.location.search); 
+  const win = getWindowSafe();
+  if (!win || !win.location || typeof win.location.search !== 'string') {
+    return new URLSearchParams();
+  }
+  return new URLSearchParams(win.location.search); 
 }
 
 /**
@@ -90,7 +123,9 @@ export async function fetchSVG(url, fillColor) {
     // Apply fill color if specified
     if (fillColor) {
       // Create a temporary DOM element to manipulate the SVG
-      const tempDiv = document.createElement('div');
+      const doc = getDocumentSafe();
+      if (!doc) return svgToDataURI(svgText);
+      const tempDiv = doc.createElement('div');
       tempDiv.innerHTML = svgText;
       const svgElement = tempDiv.querySelector('svg');
       
@@ -122,22 +157,25 @@ export function createInlineSVG(svgText, className) {
     if (svgText.startsWith('data:image/svg+xml,')) {
       svgText = decodeURIComponent(svgText.substring(19));
     }
-    
+
     // Create a temporary container
-    const div = document.createElement('div');
+    const doc = getDocumentSafe();
+    if (!doc) return null;
+    const div = doc.createElement('div');
     div.innerHTML = svgText.trim();
-    
+
     // Get the SVG element
     const svg = div.querySelector('svg');
     if (!svg) return null;
-    
-    // Add class if provided
-    if (className) svg.classList.add(className);
-    
+
     // Set default size attributes if not present
     if (!svg.hasAttribute('width')) svg.setAttribute('width', '100%');
     if (!svg.hasAttribute('height')) svg.setAttribute('height', '100%');
     
+    // Add the class name if specified
+    if (className) svg.classList.add(className);
+    
+    // Return the SVG element
     return svg;
   } catch (err) {
     log('Inline SVG creation error:', err);
@@ -150,4 +188,8 @@ export function createInlineSVG(svgText, className) {
  */
 export function escapeHTML(str) {
   return str.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\'':'&#39;','"':'&quot;'}[c] || c));
+}
+
+export function tw(...classes) {
+  return classes.filter(Boolean).join(' ');
 }

@@ -1,6 +1,9 @@
 // index.js // Size Recommendation Button
 // Version: 0.1.1
 
+// Global styles (Tailwind utilities with widget prefix)
+import './styles/tailwind.css';
+
 // Import modules
 import { svgToDataURI, fetchSVG, log } from './modules/utils.js';
 import { DEBUG, config, FLOW_ORIGIN } from './modules/config.js';

@@ -1,5 +1,5 @@
-import { config } from './config.js';
-import { log } from './utils.js';
+import { config, FLOW_ORIGIN } from './config.js';
+import { log, getLocalStorageSafe } from './utils.js';
 import { resolveProductId } from './product-detection.js';
 import { closeWidget } from './widget.js';
 
@@ -34,6 +34,10 @@ export function getIframeData(key) {
  * Set up message listener to receive data from the iframe
  */
 export function setupIframeMessageListener(frame) {
+  if (typeof window === 'undefined') {
+    log('Skipping iframe listener setup - window is undefined');
+    return;
+  }
   // Log that we're setting up the listener
   log('Setting up iframe message listener');
   
@@ -47,7 +51,16 @@ export function setupIframeMessageListener(frame) {
     try {
       // Handle different message types
       if (!data || !data.type) return;
-      
+
+      const isSallaMessage = data.type.startsWith('SALLA_');
+      if (!isSallaMessage) {
+        const expectedOrigin = FLOW_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : null);
+        if (!expectedOrigin || event.origin !== expectedOrigin) {
+          log('Discarded iframe message from unexpected origin:', event.origin, data.type);
+          return;
+        }
+      }
+
       switch (data.type) {
         case 'SALLA_CONNECTED':
           // Handle Salla connected message
@@ -159,7 +172,11 @@ export function sendMessageToIframe(messageData) {
   }
   
   try {
-    const iframeOrigin = new URL(config.EXTERNAL_FLOW_BASE).origin;
+    const iframeOrigin = FLOW_ORIGIN || (typeof window !== 'undefined' ? window.location.origin : null);
+    if (!iframeOrigin) {
+      log('Skipping postMessage - no trusted origin available');
+      return false;
+    }
     frame.contentWindow.postMessage(messageData, iframeOrigin);
     log('Sent message to iframe:', messageData.type);
     return true;
@@ -173,6 +190,11 @@ export function sendMessageToIframe(messageData) {
  * Store iframe data in localStorage for persistence between sessions
  */
 function persistIframeData() {
+  const storage = getLocalStorageSafe();
+  if (!storage) {
+    log('localStorage unavailable, skipping persistence');
+    return;
+  }
   try {
     // Only store what we need to persist
     const dataToStore = {
@@ -184,7 +206,7 @@ function persistIframeData() {
       keyType: iframeData.keyType
     };
     
-    localStorage.setItem('size-core-data', JSON.stringify(dataToStore));
+    storage.setItem('size-core-data', JSON.stringify(dataToStore));
     log('Data persisted to localStorage');
   } catch (err) {
     log('Error persisting data to localStorage:', err);
@@ -195,8 +217,13 @@ function persistIframeData() {
  * Load iframe data from localStorage
  */
 function loadPersistedIframeData() {
+  const storage = getLocalStorageSafe();
+  if (!storage) {
+    log('localStorage unavailable, skipping persisted data load');
+    return false;
+  }
   try {
-    const storedData = localStorage.getItem('size-core-data');
+    const storedData = storage.getItem('size-core-data');
     if (storedData) {
       const parsedData = JSON.parse(storedData);
       
@@ -226,20 +253,23 @@ export function clearMeasurementData() {
     const storeId = iframeData.sallaStoreId;
     const connected = iframeData.sallaConnected;
     const keyType = iframeData.keyType;
-    
+
     // Clear measurement and results data
     iframeData.sallaResults = null;
     iframeData.measurements = null;
     iframeData.userProfile = null;
-    
+
     // Update localStorage with the cleared data
     const dataToStore = {
       sallaStoreId: storeId,
       sallaConnected: connected,
       keyType: keyType
     };
-    
-    localStorage.setItem('size-core-data', JSON.stringify(dataToStore));
+
+    const storage = getLocalStorageSafe();
+    if (storage) {
+      storage.setItem('size-core-data', JSON.stringify(dataToStore));
+    }
     log('Measurement data cleared for retake');
   } catch (err) {
     log('Error clearing measurement data:', err);
@@ -247,21 +277,14 @@ export function clearMeasurementData() {
 }
 
 /**
- * Dispatch a custom event when iframe data is received
- */
-function dispatchWidgetEvent(eventName, data) {
-  const event = new CustomEvent('size-core:' + eventName, {
-    detail: data,
-    bubbles: true
-  });
-  document.dispatchEvent(event);
-}
-
-/**
  * Initialize global message listener for any messages, not just from iframes
  * This ensures we can receive messages even before an iframe is loaded
  */
 export function initGlobalMessageListener() {
+  if (typeof window === 'undefined') {
+    log('Skipping global message listener init - window is undefined');
+    return;
+  }
   // Skip if we've already initialized the listener
   if (window.__sizeCoreMessageListenerInitialized) {
     log('Global message listener already initialized - skipping');
@@ -292,6 +315,14 @@ export function initGlobalMessageListener() {
     try {
       // Handle Salla messages
       if (data && data.type) {
+        const isSallaMessage = data.type.startsWith('SALLA_');
+        if (!isSallaMessage) {
+          const expectedOrigin = FLOW_ORIGIN || window.location.origin;
+          if (!expectedOrigin || event.origin !== expectedOrigin) {
+            log('Discarded global message from unexpected origin:', event.origin, data.type);
+            return;
+          }
+        }
         switch (data.type) {
           case 'SALLA_CONNECTED':
             log('⭐ Received SALLA_CONNECTED message in global listener:', event.origin);
